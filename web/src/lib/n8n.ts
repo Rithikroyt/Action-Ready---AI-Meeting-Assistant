@@ -6,7 +6,12 @@ export interface N8nTarget {
   base: string;
   headerName: string;
   secret: string;
+  /** Status webhook path relative to `base`, without the job ID (instance-specific; see N8N_JOB_STATUS_PATH). */
+  statusPath: string;
 }
+
+export const statusUrl = (t: N8nTarget, job_id: string) =>
+  `${t.base.replace(/\/+$/, "")}/${t.statusPath.replace(/^\/+|\/+$/g, "")}/${encodeURIComponent(job_id)}`;
 
 export type SubmitOutcome =
   | { kind: "accepted"; job_id: string }
@@ -67,7 +72,7 @@ export async function fetchJobFromN8n(t: N8nTarget, job_id: string, fetchImpl: t
   if (!JOB_ID_RE.test(job_id)) return { kind: "not_found" };
   let res: Response;
   try {
-    res = await fetchImpl(`${t.base}/actionready/v1/jobs/${encodeURIComponent(job_id)}`, {
+    res = await fetchImpl(statusUrl(t, job_id), {
       method: "GET",
       headers: { Accept: "application/json", [t.headerName]: t.secret },
       cache: "no-store",

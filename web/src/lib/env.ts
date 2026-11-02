@@ -9,9 +9,16 @@ export interface AppConfig {
   projectLabel: string;
   appPassword: string | null;
   sessionSecret: string | null;
-  n8n: { base: string; headerName: string; secret: string } | null;
+  n8n: { base: string; headerName: string; secret: string; statusPath: string } | null;
   /** Names of missing/invalid settings — never their values. */
   problems: string[];
+}
+
+/** Trim slashes; allow only plain path segments (no scheme, query, '..' or ':param'). Empty = invalid. */
+export function normalizeStatusPath(raw: string): string {
+  const p = raw.trim().replace(/^\/+|\/+$/g, "").replace(/\/{2,}/g, "/").replace(/\/:job_id$/, "");
+  if (!p || p.split("/").some((seg) => !/^[A-Za-z0-9._~-]+$/.test(seg) || seg === "." || seg === "..")) return "";
+  return p;
 }
 
 export function getConfig(): AppConfig {
@@ -28,6 +35,8 @@ export function getConfig(): AppConfig {
   if (mode === "live") {
     const base = (e.N8N_WEBHOOK_BASE ?? "").replace(/\/+$/, "");
     const headerName = e.N8N_WEBHOOK_HEADER_NAME ?? "";
+    // n8n prefixes path-parameter webhooks with a webhook ID, so the status path is instance-specific.
+    const statusPath = normalizeStatusPath(e.N8N_JOB_STATUS_PATH ?? "");
     const secret = e.N8N_WEBHOOK_SECRET ?? "";
     let baseOk = false;
     try {
@@ -38,8 +47,9 @@ export function getConfig(): AppConfig {
     }
     if (!baseOk) problems.push("N8N_WEBHOOK_BASE (https production /webhook URL, not /webhook-test)");
     if (!/^[A-Za-z0-9-]{3,64}$/.test(headerName)) problems.push("N8N_WEBHOOK_HEADER_NAME");
+    if (!statusPath) problems.push("N8N_JOB_STATUS_PATH (status webhook path without the job ID, e.g. <webhook-id>/actionready/v1/jobs)");
     if (secret.length < 16) problems.push("N8N_WEBHOOK_SECRET (min 16 characters)");
-    if (baseOk && headerName && secret.length >= 16) n8n = { base, headerName, secret };
+    if (baseOk && headerName && secret.length >= 16 && statusPath) n8n = { base, headerName, secret, statusPath };
   }
 
   return {

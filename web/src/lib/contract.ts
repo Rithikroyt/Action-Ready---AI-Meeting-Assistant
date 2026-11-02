@@ -56,6 +56,8 @@ export interface ToolEvidence {
   retrieved_at: string | null;
   max_source_updated_at: string | null;
   outcome: "OK" | "EMPTY" | "ERROR" | "TRUNCATED" | "UNKNOWN";
+  /** Descriptive retrieval text when the source gave no precise timestamp (never shown as a date). */
+  retrieved_note?: string | null;
 }
 
 /** Minimal summary of a retrieved business record — never the raw row or transcript. */
@@ -69,6 +71,8 @@ export interface EvidenceRecord {
   due_text: string | null;
   updated_at: string | null;
   provenance: string | null;
+  /** True when only the record ID is known (live n8n evidence); other fields are null, not guessed. */
+  id_only: boolean;
 }
 
 export interface ReviewEntry {
@@ -126,6 +130,8 @@ const num = z.unknown().optional().transform((v) => {
   return typeof n === "number" && Number.isFinite(n) ? n : null;
 });
 const iso = z.unknown().optional().transform((v) => (typeof v === "string" && Number.isFinite(Date.parse(v)) ? v : null));
+/** Only real ISO-8601 timestamps; descriptive sentences are not dates. */
+const isoStrict = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v) && Number.isFinite(Date.parse(v)) ? v : null);
 const strList = (max = 40) =>
   z.unknown().optional().transform((v) =>
     Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim() !== "").slice(0, max).map((x) => x.slice(0, 600)) : [],
@@ -138,6 +144,10 @@ const maybeJson = (v: unknown): unknown => {
   } catch {
     return v;
   }
+};
+const obj = (v: unknown): Record<string, unknown> | null => {
+  const x = maybeJson(v);
+  return x && typeof x === "object" && !Array.isArray(x) ? (x as Record<string, unknown>) : null;
 };
 const arr = (v: unknown): unknown[] => {
   const x = maybeJson(v);
@@ -177,6 +187,12 @@ const workloadSchema = z.object({
   capacity_id: str(120),
   capacity_margin: num,
   status: str(40),
+  // live n8n names (Build Job Result)
+  existing_hours: num,
+  new_hours: num,
+  projected_hours: num,
+  capacity_hours: num,
+  margin_hours: num,
 });
 
 const issueSchema = z.object({
@@ -218,8 +234,8 @@ function mapApproval(raw: unknown): ApprovalState {
 
 function severityOf(v: string | null): Severity {
   const s = (v ?? "").toUpperCase();
-  if (s === "BLOCKING" || s === "BLOCKER" || s === "CRITICAL") return "BLOCKING";
-  if (s === "NOTICE" || s === "INFO") return "NOTICE";
+  if (s === "BLOCKING" || s === "BLOCKED" || s === "BLOCKER" || s === "CRITICAL") return "BLOCKING";
+  if (s === "NOTICE" || s === "INFO" || s === "WARNING") return "NOTICE";
   return "UNKNOWN";
 }
 
@@ -239,11 +255,11 @@ export function normalizeJob(input: unknown, mode: DataMode, now = Date.now()): 
   };
   const lastSeen = Date.parse(timestamps.updated_at ?? timestamps.started_at ?? timestamps.accepted_at ?? "");
   const stale =
-    (execution_status === "ACCEPTED" || execution_status === "RUNNING") &&
-    Number.isFinite(lastSeen) &&
-    now - lastSeen > STALE_AFTER_MS;
+    o.stale === true ||
+    ((execution_status === "ACCEPTED" || execution_status === "RUNNING") && Number.isFinite(lastSeen) && now - lastSeen > STALE_AFTER_MS);
 
-  const reviewObj = (maybeJson(o.review) ?? {}) as Record<string, unknown>;
+  // Website contract uses top-level review fields or `review`; live n8n uses `ai_review`.
+  const reviewObj = obj(o.review) ?? obj(o.ai_review) ?? {};
   const rawReview = str(60).parse(first(o, "review_status") ?? reviewObj.status);
   const gate = str(30).parse(first(o, "gate") ?? reviewObj.gate);
   const scoresRaw = maybeJson(first(o, "scores") ?? reviewObj.scores);
@@ -256,50 +272,77 @@ export function normalizeJob(input: unknown, mode: DataMode, now = Date.now()): 
         )
       : null;
 
-  const readiness = pickEnum(first(o, "operational_readiness", "readiness"), READINESS, "NOT_CHECKED");
+  // Live n8n nests readiness: operational_readiness: { status, reasons, questions, ... }.
+  const readinessObj = obj(o.operational_readiness);
+  const readiness = pickEnum(readinessObj ? readinessObj.status : first(o, "operational_readiness", "readiness"), READINESS, "NOT_CHECKED");
 
+  const evidenceObj = obj(o.evidence);
+  // Live n8n keeps excerpts in evidence.actions[{action_id, source_quote}]; matched by action ID only.
+  const quoteById = new Map<string, string>();
+  for (const e of arr(evidenceObj?.actions)) {
+    const x = obj(e);
+    const id = str(40).parse(x?.action_id);
+    const q = str(600).parse(x?.source_quote);
+    if (id && q && !quoteById.has(id)) quoteById.set(id, q);
+  }
   const actions: ActionItem[] = arr(first(o, "actions", "action_items", "validated_action_items"))
     .slice(0, 50)
     .map((a, i) => {
       const p = actionSchema.parse(a ?? {});
+      const action_id = p.action_id ?? p.id ?? `A${i + 1}`;
       return {
-        action_id: p.action_id ?? p.id ?? `A${i + 1}`,
+        action_id,
         task: p.task ?? "(task not provided)",
         owner: p.owner,
         owner_id: p.owner_id,
         due_text: p.due_text ?? p.deadline,
         estimated_hours: p.estimated_hours,
-        source_quote: p.source_quote,
+        source_quote: p.source_quote ?? quoteById.get(action_id) ?? null,
       };
     });
 
   const workloadSrc = maybeJson(first(o, "workload", "workload_calculation"));
+  const byOwner = arr(o.workload_by_owner);
+  const single = obj(workloadSrc);
   const workloadRows = Array.isArray(workloadSrc)
     ? workloadSrc
-    : arr((workloadSrc as Record<string, unknown> | undefined)?.owners);
+    : byOwner.length
+      ? byOwner // live n8n: one row per owner
+      : single?.owners !== undefined
+        ? arr(single.owners)
+        : single?.owner_id
+          ? [single] // live n8n: single primary-owner object
+          : [];
   const workload: OwnerWorkload[] = workloadRows.slice(0, 20).flatMap((w) => {
     const p = workloadSchema.parse(w ?? {});
     const owner_id = p.owner_id ?? p.owner;
     if (!owner_id) return [];
     const status = (p.status ?? "").toUpperCase();
+    // `??` keeps null as null: an unknown value is never turned into 0.
+    const capacity_margin = p.capacity_margin ?? p.margin_hours;
+    // Live rows carry no per-owner status. Derive it conservatively: over only from a negative
+    // margin; within only when the official case readiness is READY; otherwise unknown.
+    const derived: OwnerWorkload["status"] =
+      capacity_margin !== null && capacity_margin < 0 ? "OVER_CAPACITY" : capacity_margin !== null && readiness === "READY" ? "WITHIN" : "UNKNOWN";
     return [
       {
         owner_id,
         owner_label: p.owner_label ?? p.owner,
-        existing_open_hours: p.existing_open_hours,
+        existing_open_hours: p.existing_open_hours ?? p.existing_hours,
         existing_commitment_ids: p.existing_commitment_ids,
-        new_proposed_hours: p.new_proposed_hours,
+        new_proposed_hours: p.new_proposed_hours ?? p.new_hours,
         new_action_ids: p.new_action_ids,
-        projected_load: p.projected_load,
-        available_hours: p.available_hours,
+        projected_load: p.projected_load ?? p.projected_hours,
+        available_hours: p.available_hours ?? p.capacity_hours,
         capacity_id: p.capacity_id,
-        capacity_margin: p.capacity_margin,
-        status: status.includes("OVER") ? "OVER_CAPACITY" : status === "WITHIN" || status.includes("WITHIN") ? "WITHIN" : "UNKNOWN",
+        capacity_margin,
+        status: status ? (status.includes("OVER") ? "OVER_CAPACITY" : status.includes("WITHIN") ? "WITHIN" : "UNKNOWN") : derived,
       },
     ];
   });
 
-  const issues: Issue[] = arr(first(o, "issues", "blocking_issues", "readiness_reasons", "reasons"))
+  const topIssues = arr(first(o, "issues", "blocking_issues", "readiness_reasons", "reasons"));
+  const issues: Issue[] = (topIssues.length ? topIssues : arr(readinessObj?.reasons))
     .slice(0, 40)
     .flatMap((x) => {
       if (typeof x === "string") return [{ code: "ISSUE", severity: "UNKNOWN" as Severity, owner_id: null, message: x.slice(0, 600) }];
@@ -329,9 +372,37 @@ export function normalizeJob(input: unknown, mode: DataMode, now = Date.now()): 
           retrieved_at: p.retrieved_at,
           max_source_updated_at: p.max_source_updated_at,
           outcome: pickEnum(p.outcome, ["OK", "EMPTY", "ERROR", "TRUNCATED", "UNKNOWN"] as const, "UNKNOWN"),
+          retrieved_note: null,
         },
       ];
     });
+  // Live n8n: evidence.business_records[{tool_name, owner_id, period_start, period_end, record_ids,
+  // record_count, retrieved_at (may be descriptive text), updated_at, success}].
+  if (!tool_evidence.length) {
+    for (const t of arr(evidenceObj?.business_records).slice(0, 30)) {
+      const x = obj(t);
+      const tool = str(60).parse(x?.tool_name ?? x?.tool);
+      if (!x || !tool) continue;
+      const args: Record<string, string> = {};
+      for (const k of ["owner_id", "period_start", "period_end"]) {
+        const v = str(120).parse(x[k]);
+        if (v) args[k] = v; // only arguments n8n actually reported
+      }
+      const count = num.parse(x.record_count);
+      const rawRetrieved = typeof x.retrieved_at === "string" ? x.retrieved_at : null;
+      const retrieved_at = isoStrict(rawRetrieved);
+      tool_evidence.push({
+        tool,
+        args,
+        returned_ids: strList(50).parse(x.record_ids),
+        result_count: count,
+        retrieved_at,
+        max_source_updated_at: isoStrict(x.updated_at),
+        outcome: x.success === true ? (count === 0 ? "EMPTY" : "OK") : x.success === false ? "ERROR" : "UNKNOWN",
+        retrieved_note: retrieved_at === null && rawRetrieved ? rawRetrieved.slice(0, 160) : null,
+      });
+    }
+  }
 
   const records: EvidenceRecord[] = arr(first(o, "records", "evidence_records"))
     .slice(0, 60)
@@ -351,9 +422,24 @@ export function normalizeJob(input: unknown, mode: DataMode, now = Date.now()): 
           due_text: str(200).parse(r.due_text),
           updated_at: iso.parse(r.updated_at),
           provenance: str(60).parse(r.provenance ?? r.data_provenance),
+          id_only: false,
         },
       ];
     });
+  // Live n8n returns record IDs only. Keep them, marked id_only, with every other field null.
+  if (!records.length) {
+    const seen = new Set<string>();
+    for (const t of tool_evidence) {
+      const kind = /capacity/i.test(t.tool) ? "capacity" : /commitment/i.test(t.tool) ? "commitment" : null;
+      if (!kind) continue;
+      for (const id of t.returned_ids) {
+        const key = kind + ":" + id;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        records.push({ kind, id, owner_id: t.args.owner_id ?? null, label: null, hours: null, status: null, due_text: null, updated_at: null, provenance: null, id_only: true });
+      }
+    }
+  }
 
   const review_history: ReviewEntry[] = arr(first(o, "review_history", "versions"))
     .slice(0, 10)
@@ -380,7 +466,7 @@ export function normalizeJob(input: unknown, mode: DataMode, now = Date.now()): 
         ? { code: "FAILED", message: "The analysis did not complete. No result was saved as successful." }
         : null;
 
-  const approval_status = mapApproval(o.approval_status);
+  const approval_status = mapApproval(o.approval_status ?? obj(o.human_approval)?.status);
   const ext = typeof o.external_action === "string" ? o.external_action.toUpperCase() : "";
 
   return {
@@ -404,13 +490,13 @@ export function normalizeJob(input: unknown, mode: DataMode, now = Date.now()): 
     approval_status,
     // Only an explicit PERMITTED from the server counts; everything else stays not permitted.
     external_action: ext === "PERMITTED" ? "PERMITTED" : ext === "UNKNOWN" ? "UNKNOWN" : "NOT_PERMITTED",
-    version: num.parse(first(o, "version", "latest_version")),
+    version: num.parse(first(o, "version", "latest_version") ?? reviewObj.version),
     max_versions: num.parse(o.max_versions),
     actions,
     draft: subject && body ? { subject, body, label: str(120).parse(draftObj?.label) ?? "Draft — not approved, not sent" } : null,
     workload,
     issues,
-    clarification_questions: strList(20).parse(maybeJson(first(o, "clarification_questions", "questions"))),
+    clarification_questions: strList(20).parse(maybeJson(first(o, "clarification_questions", "questions") ?? readinessObj?.questions)),
     tool_evidence,
     records,
     review_history,

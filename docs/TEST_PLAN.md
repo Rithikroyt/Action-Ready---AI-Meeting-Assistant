@@ -10,13 +10,17 @@ Fixtures are synthetic test specifications (`web/src/lib/fixtures.ts`, exported 
 |---|---|---|
 | `web/tests/readiness.test.ts` — 15 fixture scenarios plus guards | OFFLINE | 29 passed |
 | `web/tests/contract.test.ts` — submission validation, response allowlist | OFFLINE | 12 passed |
-| `web/tests/n8n-adapter.test.ts` — status mapping, secret handling, no retry | MOCKED | 11 passed |
+| `web/tests/n8n-adapter.test.ts` — status mapping, secret handling, no retry | MOCKED | 11 passed (now 14, see below) |
 | `web/tests/smoke.server.test.ts` — auth, origin, overload, failure, idempotency, 404, no-store | LOCAL-SERVER (DEMO) | 7 passed |
 | Headless Edge walkthrough: login → example → submit → case tabs → overview → 390 px mobile | LOCAL-SERVER (DEMO) | 0 console errors, 0 px horizontal overflow |
 | `web/tests/preflight.test.ts` — Pre-submit Notes Check (local heuristic only; not AI verification) | OFFLINE | 14 passed |
 | `web/tests/whatif.test.ts` — What-If Workspace (local non-mutating simulation; official readiness remains the n8n result) | OFFLINE | 10 passed |
 | Headless Edge: preflight panel, warning confirm, no API calls while typing; what-if 6+2→READY, cap 10→READY, −3→UNKNOWN, reset, 0 network requests while simulating, official stays BLOCKED | LOCAL-SERVER (DEMO) | all checks as expected |
+| `web/tests/live-contract.test.ts` — the actual n8n `Build Job Result` shape (BLOCKED, UNKNOWN, in-flight), field mapping, severity mapping, null preservation, excerpt matching, what-if on the live shape | OFFLINE | 16 passed |
+| `web/tests/n8n-adapter.test.ts` — status URL with the n8n webhook-ID prefix; path normalization and rejection (added to the existing suite) | OFFLINE / MOCKED | 14 passed (3 new) |
 | `tsc --noEmit`, `next build` | OFFLINE | clean |
+
+Live-shape fixtures are synthetic copies of the field structure produced by `Build Job Result` (audited 2026-11-02). They show the website can read that shape; they are not evidence that a live run produced those values.
 
 Re-run: `cd web && npm test`. For the server smoke test, run `npm run build && npm start`, then `SMOKE_URL=http://localhost:3000 SESSION_SECRET=… npx vitest run tests/smoke.server.test.ts`.
 

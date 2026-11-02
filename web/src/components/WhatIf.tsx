@@ -58,7 +58,8 @@ function Simulator({ job, official }: { job: JobView; official: OwnerWorkload })
   const changed = toNum(newH) !== start.new_hours || toNum(capH) !== start.capacity_hours;
   const max = Math.max(24, Math.ceil((start.existing_hours + start.new_hours) * 1.5), Math.ceil(start.capacity_hours * 1.5));
   const officialOwner = ownerVerdict(official);
-  const otherIssues = job.issues.filter((i) => i.severity !== "NOTICE" && i.code !== "OVER_CAPACITY").length;
+  // The overload itself is what the simulation recalculates (demo code OVER_CAPACITY, live n8n code CAPACITY_OVERLOAD).
+  const otherIssues = job.issues.filter((i) => i.severity !== "NOTICE" && i.code !== "OVER_CAPACITY" && i.code !== "CAPACITY_OVERLOAD").length;
   const officialLabel = job.mode === "LIVE" ? "Official n8n result" : "Official result · synthetic demo";
   const reset = () => {
     setNewH(String(start.new_hours));

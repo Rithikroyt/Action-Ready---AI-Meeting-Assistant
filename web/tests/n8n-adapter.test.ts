@@ -1,8 +1,10 @@
 // MOCKED: the n8n adapter against a fake fetch. No network, no live workflow.
 import { describe, expect, it, vi } from "vitest";
-import { fetchJobFromN8n, submitToN8n } from "@/lib/n8n";
+import { fetchJobFromN8n, statusUrl, submitToN8n } from "@/lib/n8n";
+import { normalizeStatusPath } from "@/lib/env";
 
-const target = { base: "https://example.app.n8n.cloud/webhook", headerName: "X-ActionReady-Key", secret: "s".repeat(24) };
+const STATUS_PATH = "102388a4-df67-43ee-8af5-75fd76f9b81d/actionready/v1/jobs";
+const target = { base: "https://example.app.n8n.cloud/webhook", headerName: "X-ActionReady-Key", secret: "s".repeat(24), statusPath: STATUS_PATH };
 const sub = {
   request_id: "1b4e28ba-2fa1-41d2-883f-0016d3cca427",
   notes: "Maya will prepare the walkthrough by 6 November 2026, estimated 4 hours.",
@@ -49,6 +51,25 @@ describe("submitToN8n (MOCKED)", () => {
   ])("HTTP %i → %s", async (status, kind) => {
     const out = await submitToN8n(target, sub, (async () => res(status, { error: { message: "x" } })) as unknown as typeof fetch);
     expect(out.kind).toBe(kind);
+  });
+});
+
+describe("status URL (OFFLINE)", () => {
+  it("matches n8n's production path, which includes the webhook-ID prefix", () => {
+    expect(statusUrl(target, "0c6f2f0e-1d2b-4c3a-9e8f-1234567890ab")).toBe(
+      "https://example.app.n8n.cloud/webhook/102388a4-df67-43ee-8af5-75fd76f9b81d/actionready/v1/jobs/0c6f2f0e-1d2b-4c3a-9e8f-1234567890ab",
+    );
+  });
+  it("normalizes slashes and a copied ':job_id' suffix; rejects unsafe paths", () => {
+    expect(normalizeStatusPath(`/${STATUS_PATH}/`)).toBe(STATUS_PATH);
+    expect(normalizeStatusPath(`${STATUS_PATH}/:job_id`)).toBe(STATUS_PATH);
+    expect(normalizeStatusPath("a//b")).toBe("a/b");
+    for (const bad of ["", "   ", "../admin", "a/../b", "https://evil.example/x", "jobs?x=1"]) expect(normalizeStatusPath(bad)).toBe("");
+  });
+  it("GET uses the configured status path; POST path is unchanged", async () => {
+    const f = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => res(200, { job_id: "job_abcdefgh" }));
+    await fetchJobFromN8n(target, "job_abcdefgh", f as unknown as typeof fetch);
+    expect(String(f.mock.calls[0]![0])).toBe(`https://example.app.n8n.cloud/webhook/${STATUS_PATH}/job_abcdefgh`);
   });
 });
 

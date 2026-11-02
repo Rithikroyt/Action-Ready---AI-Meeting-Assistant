@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.2 — 2026-11-02 (targeted repair of audit criticals C1–C3)
+- **C1 (n8n, workflow `KTQmpWghSB2jid1T`, node `Prepare Final Job State` only):** the saved check now uses `const saved = r.verified === true;` (the output of `Verify Saved Records`). Before, it read a `persistence` object that is only built later in `Restore Chat Reply`, so every website job was finalized FAILED. No other node or connection changed, and the workflow was not published or executed.
+- **C2 (web):** the status webhook path is configurable through the new server-only `N8N_JOB_STATUS_PATH`, because n8n prefixes path-parameter webhooks with a webhook ID. `statusUrl()` and `normalizeStatusPath()` handle slashes, a pasted `:job_id` suffix, and unsafe paths. The POST path is unchanged, and live mode is Disconnected if the path is missing.
+- **C3 (web):** `normalizeJob()` also accepts the live `Build Job Result` shape:
+  - nested `operational_readiness`, with severity mapping BLOCKED→BLOCKING and WARNING→NOTICE;
+  - `workload_by_owner` and the single `workload` object, with field renames and null preserved;
+  - `ai_review` and `human_approval`;
+  - `evidence.business_records` → `tool_evidence`, where a descriptive `retrieved_at` is kept as `retrieved_note` rather than a date;
+  - ID-only `records`, and `evidence.actions` excerpts attached by `action_id`;
+  - the `stale` flag.
+
+  The demo contract is unchanged.
+- UI: ID-only records make no counted/excluded claim; a descriptive retrieval time is shown as text; What-If treats `CAPACITY_OVERLOAD` as the simulated overload.
+- Docs: `WEBSITE_INTEGRATION.md` now documents the real endpoints and response shape.
+- Tests: +19 (live shape 16, status URL 3). 102 total passing.
+
 ## 0.3.1 — 2026-11-02 (web-only helpers)
 - **Pre-submit Notes Check** (`web/src/lib/preflight.ts`, `PreflightPanel`). Local heuristic only; not AI verification.
   - ERROR (blocks): empty or too-short notes, missing or invalid planning period.

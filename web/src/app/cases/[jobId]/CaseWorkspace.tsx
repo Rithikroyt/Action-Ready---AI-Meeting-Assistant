@@ -556,7 +556,7 @@ function EvidencePanel({ job, action, notes }: { job: JobView; action: ActionIte
         {recs.length === 0 ? (
           <p className="muted small">{job.operational_readiness === "NOT_CHECKED" ? "No records were retrieved for this case." : "No matching records were returned."}</p>
         ) : (
-          recs.map((r) => <RecordRow key={r.kind + r.id} r={r} counted={r.kind === "capacity" || counted.has(r.id)} />)
+          recs.map((r) => <RecordRow key={r.kind + r.id} r={r} counted={r.id_only ? null : r.kind === "capacity" || counted.has(r.id)} />)
         )}
       </div>
 
@@ -570,28 +570,31 @@ function EvidencePanel({ job, action, notes }: { job: JobView; action: ActionIte
   );
 }
 
-function RecordRow({ r, counted }: { r: EvidenceRecord; counted: boolean }) {
+/** `counted` is null when only the record ID is known, so no counted/excluded claim is made. */
+function RecordRow({ r, counted }: { r: EvidenceRecord; counted: boolean | null }) {
   return (
-    <div className={`record ${counted ? "" : "excluded"}`}>
+    <div className={`record ${counted === false ? "excluded" : ""}`}>
       <div>
         <div className="row" style={{ gap: 6 }}>
           <code>{r.id}</code>
           <span className="badge" style={{ height: 18, fontSize: 11 }}>
             {r.kind === "capacity" ? "Capacity" : "Commitment"}
           </span>
-          {!counted && (
+          {counted === false && (
             <span className="small muted" title="Completed, cancelled, unconfirmed or stale records are not counted.">
               not counted
             </span>
           )}
         </div>
-        <div style={{ marginTop: 4 }}>{r.label ?? <span className="muted">No description</span>}</div>
+        <div style={{ marginTop: 4 }}>
+          {r.label ?? <span className="muted">{r.id_only ? "Returned by the tool call. Details are not included in the live response." : "No description"}</span>}
+        </div>
       </div>
       <div style={{ fontWeight: 620, fontVariantNumeric: "tabular-nums" }}>{fmtHours(r.hours)}</div>
       <div className="meta">
         {r.status && <span>{r.status}</span>}
         {r.due_text && <span>· {r.due_text}</span>}
-        <span title={r.updated_at ?? ""}>· updated {relTime(r.updated_at)}</span>
+        {r.updated_at && <span title={r.updated_at}>· updated {relTime(r.updated_at)}</span>}
         {r.provenance && <span>· {r.provenance === "SYNTHETIC_DEMO" ? "synthetic" : r.provenance}</span>}
       </div>
     </div>
@@ -615,7 +618,7 @@ function ToolRow({ t }: { t: ToolEvidence }) {
       </div>
       <div className="small muted">{t.result_count ?? "?"} rows</div>
       <div className="meta">
-        <span>retrieved {fmtDate(t.retrieved_at)}</span>
+        <span>{t.retrieved_at ? `retrieved ${fmtDate(t.retrieved_at)}` : t.retrieved_note ? `retrieved ${t.retrieved_note}` : "retrieval time not reported"}</span>
         {t.max_source_updated_at && <span>· newest source update {relTime(t.max_source_updated_at)}</span>}
         {t.returned_ids.length > 0 && <span>· {t.returned_ids.join(", ")}</span>}
       </div>
@@ -634,7 +637,7 @@ function History({ job }: { job: JobView }) {
     events.push({
       at: t.retrieved_at,
       label: `${t.tool}(${Object.values(t.args).join(", ")})`,
-      detail: `${t.outcome} · ${t.result_count ?? "?"} rows${t.returned_ids.length ? " · " + t.returned_ids.join(", ") : ""}`,
+      detail: `${t.outcome} · ${t.result_count ?? "?"} rows${t.returned_ids.length ? " · " + t.returned_ids.join(", ") : ""}${!t.retrieved_at && t.retrieved_note ? " · " + t.retrieved_note : ""}`,
       tone: t.outcome === "OK" || t.outcome === "EMPTY" ? "ok" : "err",
     });
   if (job.timestamps.finished_at) events.push({ at: job.timestamps.finished_at, label: `Finished — ${execLabel(job).label}`, tone: "ok" });
