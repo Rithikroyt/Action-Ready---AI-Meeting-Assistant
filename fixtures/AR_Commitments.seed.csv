@@ -1,0 +1,5 @@
+commitment_id,project_id,owner_id,task,due_text,period_start,period_end,remaining_hours,task_status,confirmation_state,source_ref,updated_at,data_provenance
+CMT-ATLAS-0007,DEMO_ATLAS,maya,Update the customer onboarding checklist,by 5 November 2026,2026-11-02,2026-11-06,6,OPEN,CONFIRMED,meeting:atlas-2026-10-26,2026-10-30T16:00:00.000Z,SYNTHETIC_DEMO
+CMT-ATLAS-0003,DEMO_ATLAS,maya,Draft Q4 release notes,by 30 October 2026,2026-11-02,2026-11-06,0,COMPLETED,CONFIRMED,meeting:atlas-2026-10-26,2026-10-30T16:00:00.000Z,SYNTHETIC_DEMO
+CMT-ATLAS-0011,DEMO_ATLAS,dev,Fix the login timeout bug,by 4 November 2026,2026-11-02,2026-11-06,2,OPEN,CONFIRMED,meeting:atlas-2026-10-26,2026-10-30T16:00:00.000Z,SYNTHETIC_DEMO
+CMT-ATLAS-0012,DEMO_ATLAS,dev,Review API rate limits,this week,2026-11-02,2026-11-06,1,OPEN,PROPOSED,meeting:atlas-2026-10-26,2026-10-30T16:00:00.000Z,SYNTHETIC_DEMO

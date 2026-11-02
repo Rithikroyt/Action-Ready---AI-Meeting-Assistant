@@ -1,0 +1,7 @@
+# Private n8n exports/backups may contain credential refs, inbox addresses, execution data
+private/
+*.env
+.env*
+!.env.example
+node_modules/
+.next/
