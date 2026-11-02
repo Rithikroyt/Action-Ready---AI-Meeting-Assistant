@@ -76,6 +76,13 @@ export interface ReadinessResult {
 
 const OPEN = new Set(["OPEN", "IN_PROGRESS"]);
 const round = (n: number) => Math.round(n * 100) / 100;
+
+/** Core capacity comparison, shared by the official rules and the local what-if simulation. */
+export function compareLoad(existing: number, added: number, capacity: number) {
+  const projected = round(existing + added);
+  return { projected, margin: round(capacity - projected), over: projected > capacity };
+}
+
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, "").replace(/\.$/, ""));
 
 function tokens(s: string): Set<string> {
@@ -297,11 +304,12 @@ export function computeReadiness(input: ReadinessInput): ReadinessResult {
     const complete = existingComplete && newComplete;
     const projected = complete ? round(existingKnown + newKnown) : null;
     // Known hours are a lower bound: a confirmed overload stays a blocker even if other data is unknown.
-    const lowerBound = round(existingKnown + newKnown);
+    const cmp = available !== null ? compareLoad(existingKnown, newKnown, available) : null;
+    const lowerBound = cmp?.projected ?? round(existingKnown + newKnown);
     let status: OwnerWorkload["status"] = "UNKNOWN";
-    if (available !== null && lowerBound > available) {
+    if (available !== null && cmp?.over) {
       status = "OVER_CAPACITY";
-      const over = round(lowerBound - available);
+      const over = round(-cmp.margin);
       add(
         "BLOCKING",
         "OVER_CAPACITY",

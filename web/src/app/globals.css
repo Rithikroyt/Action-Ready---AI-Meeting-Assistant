@@ -1162,3 +1162,129 @@ dl.kv dd {
   gap: 12px;
   flex-wrap: wrap;
 }
+
+/* ---------- pre-submit check ---------- */
+.preflight {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 12px 14px;
+  display: grid;
+  gap: 8px;
+}
+.preflight-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.preflight-head h2 {
+  font-size: 13px;
+}
+.preflight-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 4px 16px;
+  font-size: 12.5px;
+}
+.preflight-list li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  color: var(--text-2);
+}
+.pf-mark {
+  width: 14px;
+  flex: none;
+  text-align: center;
+  font-weight: 700;
+}
+.pf-ok .pf-mark {
+  color: var(--ready);
+}
+.pf-warning {
+  color: #7a4504 !important;
+}
+.pf-warning .pf-mark {
+  color: var(--unknown);
+}
+.pf-error {
+  color: var(--blocked) !important;
+  font-weight: 560;
+}
+
+/* ---------- what-if ---------- */
+.whatif-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+.wi-pane {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.wi-pane.sim {
+  border-style: dashed;
+  border-color: #b9bdf8;
+  background: #fbfbff;
+}
+.wi-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.wi-tag.official {
+  color: var(--text-2);
+}
+.wi-tag.sim {
+  color: var(--accent-ink);
+}
+.wi-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.wi-control {
+  display: grid;
+  gap: 6px;
+}
+.wi-control label {
+  font-weight: 580;
+  font-size: 12.5px;
+}
+.wi-control .pair {
+  display: grid;
+  grid-template-columns: 1fr 76px;
+  gap: 8px;
+  align-items: center;
+}
+.wi-control input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.wi-control .input {
+  padding: 5px 8px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.wi-diff {
+  font-size: 12.5px;
+  color: var(--accent-ink);
+}
+@media (max-width: 1080px) {
+  .whatif-grid,
+  .wi-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

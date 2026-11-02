@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { rememberNotes } from "@/lib/sessionNotes";
+import { preflightNotes, MAX_CHARS } from "@/lib/preflight";
+import { PreflightPanel } from "./PreflightPanel";
 import { IconAlert, IconDatabase, IconLock, IconUpload } from "@/components/Icons";
 
 export interface ExampleOption {
@@ -14,7 +16,6 @@ export interface ExampleOption {
   timezone: string;
 }
 
-const MAX_CHARS = 12000;
 const MAX_FILE_BYTES = 64 * 1024;
 const COMMON_TZ = ["America/Phoenix", "America/Los_Angeles", "America/Denver", "America/Chicago", "America/New_York", "Europe/London", "Europe/Berlin", "Asia/Kolkata", "Asia/Singapore", "Australia/Sydney", "UTC"];
 
@@ -22,7 +23,8 @@ type Phase =
   | { k: "idle" }
   | { k: "submitting" }
   | { k: "error"; message: string; code: string }
-  | { k: "ambiguous"; message: string };
+  | { k: "ambiguous"; message: string }
+  | { k: "confirm" };
 
 export function NewMeetingForm(props: {
   examples: ExampleOption[];
@@ -45,7 +47,11 @@ export function NewMeetingForm(props: {
   // One request ID per distinct submission. It survives an ambiguous timeout so "Check again"
   // re-asks about the same request instead of starting a second analysis.
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
+  // Request ID whose pre-submit warnings the user already accepted, so we ask only once per submission.
+  const [warnAck, setWarnAck] = useState<string | null>(null);
+  const [attempted, setAttempted] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const notesRef = useRef<HTMLTextAreaElement>(null);
   const firstLoad = useRef(true);
 
   useEffect(() => {
@@ -58,13 +64,17 @@ export function NewMeetingForm(props: {
       return;
     }
     setRequestId(crypto.randomUUID());
-    if (phase.k === "ambiguous" || phase.k === "error") setPhase({ k: "idle" });
+    if (phase.k === "ambiguous" || phase.k === "error" || phase.k === "confirm") setPhase({ k: "idle" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notes, start, end, tz]);
 
   const tzOptions = useMemo(() => Array.from(new Set([tz, ...COMMON_TZ])).filter(Boolean), [tz]);
   const edited = loaded !== null && (loaded.notes !== notes || loaded.period.start !== start || loaded.period.end !== end);
   const chars = notes.trim().length;
+  // Local heuristics only; recomputed as the user types (deferred so typing stays smooth). No network.
+  const deferredNotes = useDeferredValue(notes);
+  const preflight = useMemo(() => preflightNotes({ notes: deferredNotes, period_start: start, period_end: end }), [deferredNotes, start, end]);
+  const showPreflight = attempted || notes.trim().length > 0;
 
   function loadExample(e: ExampleOption) {
     setNotes(e.notes);
@@ -89,20 +99,25 @@ export function NewMeetingForm(props: {
     if (fileRef.current) fileRef.current.value = "";
   }
 
-  function localCheck(): Record<string, string> {
-    const e: Record<string, string> = {};
-    if (chars < 20 || notes.trim().split(/\s+/).length < 4) e.notes = "Paste the complete meeting notes.";
-    if (chars > MAX_CHARS) e.notes = `Notes are ${chars.toLocaleString()} characters; the limit is 12,000. Nothing was truncated.`;
-    if (!start) e.period_start = "Choose a start date.";
-    if (!end) e.period_end = "Choose an end date.";
-    if (start && end && end < start) e.period_end = "End is before start.";
-    return e;
+  function reviewNotes() {
+    setPhase({ k: "idle" });
+    notesRef.current?.focus();
   }
 
-  async function submit() {
-    const errs = localCheck();
+  async function submit(opts: { acceptWarnings?: boolean; recheck?: boolean } = {}) {
+    setAttempted(true);
+    const pf = preflightNotes({ notes, period_start: start, period_end: end });
+    const errs: Record<string, string> = {};
+    for (const e of pf.errors) if (e.field) errs[e.field] ??= e.label + ".";
     setFieldErr(errs);
-    if (Object.keys(errs).length) return;
+    if (!pf.canSubmit) return;
+    // Warnings never block, but ask once before spending an AI run. "Check again" after an
+    // ambiguous timeout re-sends the same request, so it never asks.
+    if (pf.warnings.length && !opts.recheck && !opts.acceptWarnings && warnAck !== requestId) {
+      setPhase({ k: "confirm" });
+      return;
+    }
+    if (opts.acceptWarnings) setWarnAck(requestId);
     setPhase({ k: "submitting" });
     let res: Response;
     try {
@@ -173,6 +188,7 @@ export function NewMeetingForm(props: {
               Meeting notes
             </label>
             <textarea
+              ref={notesRef}
               id={ids.notes}
               className="textarea"
               value={notes}
@@ -222,8 +238,28 @@ export function NewMeetingForm(props: {
                   instead of starting a second analysis.
                 </span>
                 <div>
-                  <button type="button" className="btn sm" onClick={() => void submit()} disabled={busy}>
+                  <button type="button" className="btn sm" onClick={() => void submit({ recheck: true })} disabled={busy}>
                     Check again
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {showPreflight && <PreflightPanel result={preflight} />}
+          {phase.k === "confirm" && (
+            <div className="banner warn" role="alertdialog" aria-labelledby="confirm-msg">
+              <IconAlert />
+              <div className="stack" style={{ gap: 8 }}>
+                <span id="confirm-msg">
+                  <strong>Submitting now may use an AI run and could return Needs Clarification.</strong> The pre-submit check found{" "}
+                  {preflight.warnings.length} possible gap{preflight.warnings.length > 1 ? "s" : ""} in the notes.
+                </span>
+                <div className="row">
+                  <button type="button" className="btn sm primary" onClick={() => void submit({ acceptWarnings: true })} autoFocus>
+                    Submit anyway
+                  </button>
+                  <button type="button" className="btn sm" onClick={reviewNotes}>
+                    Review notes
                   </button>
                 </div>
               </div>

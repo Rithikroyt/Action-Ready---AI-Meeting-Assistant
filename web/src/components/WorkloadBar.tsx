@@ -4,7 +4,8 @@ import { ReadinessBadge } from "./Badges";
 
 // Existing confirmed work (graphite) + new proposed work (indigo) against a capacity marker.
 // Anything past capacity is hatched red. Unknown values are shown as unknown, never as zero.
-export function WorkloadBar({ w }: { w: OwnerWorkload }) {
+/** `compact` hides record IDs and the capacity footnote (used side by side in the what-if view). */
+export function WorkloadBar({ w, compact = false }: { w: OwnerWorkload; compact?: boolean }) {
   const existing = w.existing_open_hours;
   const added = w.new_proposed_hours;
   const cap = w.available_hours;
@@ -88,13 +89,13 @@ export function WorkloadBar({ w }: { w: OwnerWorkload }) {
           {w.capacity_margin === null ? "Not assessable" : fmtHours(Math.abs(w.capacity_margin))}
         </span>
       </div>
-      {(w.existing_commitment_ids.length > 0 || w.capacity_id) && (
+      {!compact && (w.existing_commitment_ids.length > 0 || w.capacity_id) && (
         <p className="small muted">
           From {w.existing_commitment_ids.map((id) => <code key={id} style={{ marginRight: 6 }}>{id}</code>)}
           {w.capacity_id && <code>{w.capacity_id}</code>}
         </p>
       )}
-      <p className="hint">Capacity means project-allocated usable hours before register commitments. It is not proof of calendar availability.</p>
+      {!compact && <p className="hint">Capacity means project-allocated usable hours before register commitments. It is not proof of calendar availability.</p>}
     </div>
   );
 }

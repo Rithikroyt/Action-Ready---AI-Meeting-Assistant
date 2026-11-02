@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.1 — 2026-11-02 (web-only helpers)
+- **Pre-submit Notes Check** (`web/src/lib/preflight.ts`, `PreflightPanel`). Local heuristic only; not AI verification.
+  - ERROR (blocks): empty or too-short notes, missing or invalid planning period.
+  - WARNING (never blocks): no obvious action, owner, deadline or effort estimate.
+  - One "Submitting now may use an AI run and could return Needs Clarification." confirmation per distinct submission, with Submit anyway / Review notes.
+- **What-If Workspace** (`web/src/lib/whatif.ts`, `WhatIf`). Local non-mutating simulation; official readiness remains the n8n result.
+  - Adjust new effort or capacity, with suggested single changes and Reset to official. In-memory only, no network.
+  - Shares `compareLoad()` with `readiness.ts`, so the simulation and the official rules use one calculation.
+- `WorkloadBar` gains a `compact` option. No change to auth, API routes, n8n adapter, or secret handling.
+- Tests: +24 (preflight 14, what-if 10). 83 total passing.
+
 ## 0.3.0 — 2026-11-02 (Week 3, website and supporting work)
 - **Audit:** read-only inspection of live workflow `KTQmpWghSB2jid1T` → `docs/BASELINE_AUDIT.md`. Found a same-named duplicate (`cisiwLtNtjuegt6m`), approval enabled with personal inboxes, a missing approval request-and-wait node, and Gmail nodes that are not actually disabled. No live changes were made.
 - **Web app (`web/`):** Next.js 16.4.4, React 19.3, TypeScript 6.0, zod 4.

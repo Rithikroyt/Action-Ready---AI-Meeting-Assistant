@@ -17,6 +17,13 @@ ActionReady turns meeting notes into an action plan, then checks a question the 
 | Tests and results | [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md) |
 | Synthetic data | [`fixtures/`](fixtures/) |
 
+## Local helper features (not graded tool execution)
+These run entirely in the browser. They make no n8n, model or tool call and never change the official result:
+- **Pre-submit Notes Check** (New meeting): local heuristic only; not AI verification. It flags missing notes or period as errors, and a missing owner, deadline or estimate as warnings, before an AI run is spent. Warnings never block submission.
+- **What-If Workspace** (Case page): local non-mutating simulation; official readiness remains the n8n result. You adjust new effort or capacity and see a hypothetical READY/BLOCKED, shown beside the unchanged official result.
+
+The graded Week 3 tool evidence (`Commitment_Register`, `Capacity_Lookup`) comes only from the n8n workflow execution.
+
 ## Run the web app
 ```bash
 cd web

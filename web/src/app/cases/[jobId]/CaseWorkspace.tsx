@@ -10,6 +10,7 @@ import { recallNotes } from "@/lib/sessionNotes";
 import { ApprovalBadge, Badge, ModeBadge, ReadinessBadge, ReviewBadge } from "@/components/Badges";
 import { IconAlert, IconCheck, IconDatabase, IconHelp, IconLock, IconRefresh } from "@/components/Icons";
 import { WorkloadBar } from "@/components/WorkloadBar";
+import { WhatIf } from "@/components/WhatIf";
 
 type Load =
   | { k: "ok"; job: JobView; checkedAt: number }
@@ -357,6 +358,8 @@ function Result({ job, jobId }: { job: JobView; jobId: string }) {
           </div>
         </section>
       </div>
+
+      <WhatIf job={job} />
 
       {notices.length > 0 && (
         <details className="card">
