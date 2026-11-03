@@ -4,6 +4,7 @@ import { useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "r
 import { useRouter } from "next/navigation";
 import { rememberNotes } from "@/lib/sessionNotes";
 import { preflightNotes, MAX_CHARS } from "@/lib/preflight";
+import { exampleFormState, NOTES_PLACEHOLDER } from "@/lib/exampleForm";
 import { PreflightPanel } from "./PreflightPanel";
 import { IconAlert, IconDatabase, IconLock, IconSparkle, IconUpload } from "@/components/Icons";
 import { Modal } from "@/components/Modal";
@@ -39,10 +40,11 @@ export function NewMeetingForm(props: {
   const toast = useToast();
   const ids ={ notes: useId(), start: useId(), end: useId(), tz: useId(), file: useId() };
   const init = props.examples.find((e) => e.id === props.initialExample) ?? null;
-  const [notes, setNotes] = useState(init?.notes ?? "");
-  const [start, setStart] = useState(init?.period.start ?? "");
-  const [end, setEnd] = useState(init?.period.end ?? "");
-  const [tz, setTz] = useState(init?.timezone ?? "America/Phoenix");
+  const initValues = init ? exampleFormState(init) : null;
+  const [notes, setNotes] = useState(initValues?.notes ?? "");
+  const [start, setStart] = useState(initValues?.period_start ?? "");
+  const [end, setEnd] = useState(initValues?.period_end ?? "");
+  const [tz, setTz] = useState(initValues?.timezone ?? "America/Phoenix");
   const [loaded, setLoaded] = useState<ExampleOption | null>(init);
   const [fieldErr, setFieldErr] = useState<Record<string, string>>({});
   const [fileMsg, setFileMsg] = useState<string | null>(null);
@@ -80,10 +82,11 @@ export function NewMeetingForm(props: {
   const showPreflight = attempted || notes.trim().length > 0;
 
   function loadExample(e: ExampleOption) {
-    setNotes(e.notes);
-    setStart(e.period.start);
-    setEnd(e.period.end);
-    setTz(e.timezone);
+    const v = exampleFormState(e);
+    setNotes(v.notes);
+    setStart(v.period_start);
+    setEnd(v.period_end);
+    setTz(v.timezone);
     setLoaded(e);
     setFieldErr({});
     setFileMsg(null);
@@ -198,7 +201,7 @@ export function NewMeetingForm(props: {
               className="textarea"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder={"Project Atlas weekly planning.\nPlanning period: 2–6 November 2026.\n\nMaya will prepare the customer-demo walkthrough by 6 November 2026, estimated 4 hours."}
+              placeholder={NOTES_PLACEHOLDER}
               aria-invalid={fieldErr.notes ? true : undefined}
               aria-describedby={`${ids.notes}-meta`}
               spellCheck

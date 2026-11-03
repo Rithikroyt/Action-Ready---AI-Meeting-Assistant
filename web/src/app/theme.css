@@ -229,6 +229,13 @@ h2 {
     border-color 140ms var(--ease),
     box-shadow 140ms var(--ease);
 }
+/* placeholders must read as hints, never as entered content */
+.input::placeholder,
+.textarea::placeholder {
+  color: #958aa8;
+  font-style: italic;
+  opacity: 1;
+}
 .input:focus,
 .select:focus,
 .textarea:focus {
