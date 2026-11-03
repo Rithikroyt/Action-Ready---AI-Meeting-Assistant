@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.0 — 2026-11-02 (decision-first UI/UX, frontend only)
+- **Case workspace order:** official statuses (three separate cards), then a plain-language decision card, workload calculation, actions and draft, Evidence / Workload / Review history tabs, What-If, and collapsed technical details.
+- **Central status module** (`lib/status.ts`) for execution, AI review, readiness and approval. Each state has a label, icon, tone, description and screen-reader text.
+  - The approval lifecycle is modelled (Not requested, Pending, Approved, Changes requested, Rejected, Expired, Draft created). `NOT_REQUESTED` is no longer collapsed into "Not given".
+- **Decision derivation** (`lib/decision.ts`) uses only official fields. When the AI review is invalid, the readiness conclusion is shown independently.
+- **Unvalidated-version warning** on actions and draft when the review gate rejected the latest version. Live case AR2-812's v2 contains a register row the Writer was pushed into adding.
+- **Overview:** search, eight filters, sort ("needs attention first"), a primary reason per case, updated time, clickable count tiles, empty and no-result states.
+- **Shell:** an always-visible environment badge (Synthetic demo / Live n8n / Disconnected) and project scope in a top bar. The sidebar background is fixed on long pages.
+- **Workload:** owner display names, *Not verified* / *Not available* instead of dashes or zeros, formulas, and "Recorded project capacity" wording.
+- **Processing:** real timestamps and elapsed time only, with no progress percentages.
+- **Hydration fix:** relative and local times render after mount (`components/Time.tsx`), removing React error #418.
+- Tokens aligned to the design spec. No new dependencies. No n8n, API, auth or secret changes.
+- **Tests:** +20 (status, decision, overview list), 122 in total. Two approval assertions were tightened from `NOT_GIVEN` to `NOT_REQUESTED`.
+
 ## 0.3.2 — 2026-11-02 (targeted repair of audit criticals C1–C3)
 - **C1 (n8n, workflow `KTQmpWghSB2jid1T`, node `Prepare Final Job State` only):** the saved check now uses `const saved = r.verified === true;` (the output of `Verify Saved Records`). Before, it read a `persistence` object that is only built later in `Restore Chat Reply`, so every website job was finalized FAILED. No other node or connection changed, and the workflow was not published or executed.
 - **C2 (web):** the status webhook path is configurable through the new server-only `N8N_JOB_STATUS_PATH`, because n8n prefixes path-parameter webhooks with a webhook ID. `statusUrl()` and `normalizeStatusPath()` handle slashes, a pasted `:job_id` suffix, and unsafe paths. The POST path is unchanged, and live mode is Disconnected if the path is missing.

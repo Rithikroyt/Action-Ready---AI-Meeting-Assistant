@@ -24,6 +24,9 @@ These run entirely in the browser. They make no n8n, model or tool call and neve
 
 The graded Week 3 tool evidence (`Commitment_Register`, `Capacity_Lookup`) comes only from the n8n workflow execution.
 
+## Interface (v0.4, decision-first)
+A case opens with what the official result is, why, and what a person must decide, before any tabs or metadata. AI review, operational readiness and human approval are always separate. See [`docs/UI_ARCHITECTURE.md`](docs/UI_ARCHITECTURE.md) for the route map, component map, status definitions and accessibility notes, and [`docs/screenshots/`](docs/screenshots/) for desktop and mobile captures. Files are labeled live, synthetic-demo or disconnected.
+
 ## Run the web app
 ```bash
 cd web

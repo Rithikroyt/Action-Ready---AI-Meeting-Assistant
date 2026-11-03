@@ -18,6 +18,9 @@ Fixtures are synthetic test specifications (`web/src/lib/fixtures.ts`, exported 
 | Headless Edge: preflight panel, warning confirm, no API calls while typing; what-if 6+2→READY, cap 10→READY, −3→UNKNOWN, reset, 0 network requests while simulating, official stays BLOCKED | LOCAL-SERVER (DEMO) | all checks as expected |
 | `web/tests/live-contract.test.ts` — the actual n8n `Build Job Result` shape (BLOCKED, UNKNOWN, in-flight), field mapping, severity mapping, null preservation, excerpt matching, what-if on the live shape | OFFLINE | 16 passed |
 | `web/tests/n8n-adapter.test.ts` — status URL with the n8n webhook-ID prefix; path normalization and rejection (added to the existing suite) | OFFLINE / MOCKED | 14 passed (3 new) |
+| `web/tests/decision-status.test.ts` — status families separate, legacy approval mapping, decision text for BLOCKED/UNKNOWN/READY/TECHNICAL/FAILED/STALE/NOT_CHECKED, overview filter/search/sort/counts, no network | OFFLINE | 20 passed |
+| Browser journeys (headless Edge, v0.4): invalid login, decision-first order, three status cards with screen-reader text, keyboard tabs (←/→/End), focus ring, What-If READY with 0 network requests and official BLOCKED unchanged, reset, UNKNOWN shows "Not verified" (never 0), READY, overview filter/search/no-result/clear, preflight confirm with 0 API calls, reduced motion, 0 px overflow at 1440/1280/1024/768/390/360, mobile stacking, 0 console errors | DEMO | 29/29 checks passed |
+| Live screens rendered from already-stored final results (AR2-789, AR2-812); no new n8n execution or model call | LIVE (cached) | rendered, 0 errors, 0 overflow |
 | `tsc --noEmit`, `next build` | OFFLINE | clean |
 
 Live-shape fixtures are synthetic copies of the field structure produced by `Build Job Result` (audited 2026-11-02). They show the website can read that shape; they are not evidence that a live run produced those values.

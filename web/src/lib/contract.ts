@@ -12,7 +12,15 @@ export const READINESS = ["READY", "BLOCKED", "UNKNOWN", "NOT_CHECKED"] as const
 export type Readiness = (typeof READINESS)[number];
 
 export type ReviewState = "PASSED" | "NEEDS_CLARIFICATION" | "REVISION_LIMIT" | "TECHNICAL_STOP" | "PENDING" | "NOT_RUN";
-export type ApprovalState = "NOT_GIVEN" | "REQUESTED" | "APPROVED" | "REJECTED" | "UNKNOWN";
+export type ApprovalState =
+  | "NOT_REQUESTED"
+  | "PENDING"
+  | "APPROVED"
+  | "CHANGES_REQUESTED"
+  | "REJECTED"
+  | "EXPIRED"
+  | "DRAFT_CREATED"
+  | "UNKNOWN";
 export type DataMode = "LIVE" | "DEMO";
 
 export type Severity = "BLOCKING" | "UNKNOWN" | "NOTICE";
@@ -224,11 +232,15 @@ function mapReview(raw: string | null, gate: string | null): ReviewState {
 }
 
 function mapApproval(raw: unknown): ApprovalState {
-  const v = typeof raw === "string" ? raw.toUpperCase() : "";
-  if (!v || v === "NOT_REQUESTED" || v === "NOT_GIVEN" || v === "NONE") return v ? "NOT_GIVEN" : "UNKNOWN";
+  const v = typeof raw === "string" ? raw.trim().toUpperCase() : "";
+  if (!v) return "UNKNOWN";
+  if (v === "NOT_REQUESTED" || v === "NOT_GIVEN" || v === "NONE") return "NOT_REQUESTED";
+  if (v.includes("DRAFT_CREATED")) return "DRAFT_CREATED";
+  if (v.includes("CHANGES")) return "CHANGES_REQUESTED";
+  if (v.includes("EXPIRE")) return "EXPIRED";
   if (v.includes("REJECT")) return "REJECTED";
   if (v === "APPROVED" || v.startsWith("APPROVED_")) return "APPROVED";
-  if (v.includes("REQUEST") || v.includes("PENDING")) return "REQUESTED";
+  if (v.includes("REQUEST") || v.includes("PENDING") || v.includes("AWAIT")) return "PENDING";
   return "UNKNOWN";
 }
 

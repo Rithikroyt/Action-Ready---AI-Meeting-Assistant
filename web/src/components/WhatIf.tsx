@@ -6,6 +6,7 @@ import { fmtHours } from "@/lib/present";
 import { officialInputs, simulate, suggestions } from "@/lib/whatif";
 import { ReadinessBadge } from "./Badges";
 import { WorkloadBar } from "./WorkloadBar";
+import { ownerName } from "@/lib/decision";
 
 // Local what-if: in-memory state only, no network, never writes to the official job object.
 const ownerVerdict = (w: OwnerWorkload): Readiness => (w.status === "OVER_CAPACITY" ? "BLOCKED" : w.status === "WITHIN" ? "READY" : "UNKNOWN");
@@ -27,7 +28,7 @@ export function WhatIf({ job }: { job: JobView }) {
           <select className="select" style={{ width: "auto" }} aria-label="Owner to simulate" value={ownerId ?? ""} onChange={(e) => setOwnerId(e.target.value)}>
             {simulatable.map((w) => (
               <option key={w.owner_id} value={w.owner_id}>
-                {w.owner_label ?? w.owner_id}
+                {ownerName(job, w.owner_id)}
               </option>
             ))}
           </select>
@@ -74,7 +75,7 @@ function Simulator({ job, official }: { job: JobView; official: OwnerWorkload })
             <span className="wi-tag official">{officialLabel}</span>
             <ReadinessBadge value={job.operational_readiness} />
           </div>
-          <WorkloadBar w={official} compact />
+          <WorkloadBar w={official} compact name={ownerName(job, official.owner_id)} />
         </div>
 
         <div className="wi-pane sim" aria-label="What-if simulation">
@@ -130,7 +131,7 @@ function Simulator({ job, official }: { job: JobView; official: OwnerWorkload })
 
           <div aria-live="polite">
             {sim.workload ? (
-              <WorkloadBar w={sim.workload} compact />
+              <WorkloadBar w={sim.workload} compact name={ownerName(job, official.owner_id)} />
             ) : (
               <p className="small" style={{ color: "var(--unknown)" }}>
                 Simulation result UNKNOWN: {sim.invalid}

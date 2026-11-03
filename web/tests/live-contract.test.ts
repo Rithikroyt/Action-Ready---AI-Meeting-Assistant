@@ -118,9 +118,9 @@ describe("live n8n response shape (OFFLINE)", () => {
     expect(v.version).toBe(1);
   });
 
-  it("5. human_approval NOT_REQUESTED → NOT_GIVEN; external action not permitted", () => {
+  it("5. human_approval NOT_REQUESTED → NOT_REQUESTED; external action not permitted", () => {
     const v = normalizeJob(liveBody("BLOCKED"), "LIVE");
-    expect(v.approval_status).toBe("NOT_GIVEN");
+    expect(v.approval_status).toBe("NOT_REQUESTED");
     expect(v.external_action).toBe("NOT_PERMITTED");
   });
 

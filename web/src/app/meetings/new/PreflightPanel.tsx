@@ -30,7 +30,7 @@ export function PreflightPanel({ result }: { result: PreflightResult }) {
           </li>
         ))}
       </ul>
-      <p className="hint">These are local checks only. ActionReady&apos;s n8n workflow performs the authoritative extraction and review.</p>
+      <p className="hint">Local heuristic only. The n8n workflow performs the authoritative extraction and review.</p>
     </section>
   );
 }

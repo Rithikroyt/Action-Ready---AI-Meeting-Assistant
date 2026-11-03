@@ -36,7 +36,7 @@ run("app routes (LOCAL-SERVER, DEMO)", () => {
     expect(job.mode).toBe("DEMO");
     expect(job.execution_status).toBe("SUCCEEDED");
     expect(job.operational_readiness).toBe("BLOCKED");
-    expect(job.approval_status).toBe("NOT_GIVEN");
+    expect(job.approval_status).toBe("NOT_REQUESTED");
     expect(job.external_action).toBe("NOT_PERMITTED");
     expect(job.workload[0]).toMatchObject({ existing_open_hours: 6, new_proposed_hours: 4, projected_load: 10, available_hours: 8, capacity_margin: -2 });
     expect(job.records.map((r: { id: string }) => r.id)).toContain("CMT-ATLAS-0007");

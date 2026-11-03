@@ -106,7 +106,14 @@ The normalizer accepts **both** this live shape and the app's own demo shape.
 3. Run `npm run build && npm start`.
 4. Submit the **Overload** example notes (period 2026-11-02 to 2026-11-06). Gmail and approval stay disabled by the workflow guards.
 
-## 5. Known limitations (private single-owner demo)
+## 5. Frontend display rules (v0.4)
+The website displays and explains the official result; see `docs/UI_ARCHITECTURE.md`.
+- `human_approval.status` maps to Not requested / Pending / Approved / Changes requested / Rejected / Expired / Draft created. Unknown values show as *Unknown*.
+- A rubric score is shown only when the review passed, labeled as a rubric and not a probability.
+- If the review gate rejected the latest version (`TECHNICAL_REVIEW` / revision limit), its actions and draft are marked **Unvalidated**.
+- The `Source_Evidence` call is not reported by the GET response, so the UI says so instead of claiming it.
+
+## 6. Known limitations (private single-owner demo)
 
 - One owner, password login, 8-hour signed cookie. This is not multi-tenant authorization.
 - The job registry is a local JSON file (`web/.data/jobs.json`) with serialized in-process writes, so it needs a persistent disk.
