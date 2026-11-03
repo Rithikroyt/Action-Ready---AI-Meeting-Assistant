@@ -5,6 +5,8 @@ export type Mode = "live" | "demo";
 
 export interface AppConfig {
   mode: Mode;
+  /** No sign-in. Honoured only in DEMO mode (synthetic data, no n8n calls); live mode always requires sign-in. */
+  openAccess: boolean;
   projectId: string;
   projectLabel: string;
   appPassword: string | null;
@@ -25,11 +27,13 @@ export function getConfig(): AppConfig {
   const e = process.env;
   const problems: string[] = [];
   const mode: Mode = e.ACTIONREADY_MODE === "live" ? "live" : "demo";
+  // Live mode can start paid workflow runs, so an open (password-free) site is never allowed there.
+  const openAccess = mode === "demo" && e.ACTIONREADY_OPEN_ACCESS === "true";
 
   const appPassword = e.APP_PASSWORD && e.APP_PASSWORD.length >= 12 ? e.APP_PASSWORD : null;
-  if (!appPassword) problems.push("APP_PASSWORD (min 12 characters)");
+  if (!appPassword && !openAccess) problems.push("APP_PASSWORD (min 12 characters)");
   const sessionSecret = e.SESSION_SECRET && e.SESSION_SECRET.length >= 32 ? e.SESSION_SECRET : null;
-  if (!sessionSecret) problems.push("SESSION_SECRET (min 32 characters)");
+  if (!sessionSecret && !openAccess) problems.push("SESSION_SECRET (min 32 characters)");
 
   let n8n: AppConfig["n8n"] = null;
   if (mode === "live") {
@@ -54,6 +58,7 @@ export function getConfig(): AppConfig {
 
   return {
     mode,
+    openAccess,
     projectId: e.ACTIONREADY_PROJECT_ID || "DEMO_ATLAS",
     projectLabel: e.ACTIONREADY_PROJECT_LABEL || "Demo Atlas (synthetic)",
     appPassword,

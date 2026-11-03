@@ -31,7 +31,8 @@ export default async function LoginPage() {
               <IconLock />
               <span>
                 <strong>Sign-in is not configured.</strong> Set <code>APP_PASSWORD</code> and <code>SESSION_SECRET</code> in <code>web/.env.local</code> (locally)
-                or in the host&apos;s environment variables, then restart or redeploy. See <code>.env.example</code>.
+                or in the host&apos;s environment variables, then restart or redeploy. For a synthetic demo without sign-in, set{" "}
+                <code>ACTIONREADY_MODE=demo</code> and <code>ACTIONREADY_OPEN_ACCESS=true</code> instead. See <code>.env.example</code>.
               </span>
             </div>
           )}

@@ -39,11 +39,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="topbar-right">
             <ModeBadge mode={cfg.mode} disconnected={disconnected} />
-            <form action={logout}>
-              <button className="btn ghost sm" type="submit">
-                Sign out
-              </button>
-            </form>
+            {cfg.openAccess ? (
+              <span className="small muted">Open demo · no sign-in</span>
+            ) : (
+              <form action={logout}>
+                <button className="btn ghost sm" type="submit">
+                  Sign out
+                </button>
+              </form>
+            )}
           </div>
         </header>
         <main id="main" className="content">

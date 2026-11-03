@@ -42,7 +42,8 @@ export async function destroySession() {
 }
 
 export async function getSession(): Promise<{ sub: string } | null> {
-  const { sessionSecret } = getConfig();
+  const { sessionSecret, openAccess } = getConfig();
+  if (openAccess) return { sub: OWNER }; // demo-only open access (see env.ts)
   if (!sessionSecret) return null;
   const raw = (await cookies()).get(COOKIE)?.value;
   if (!raw) return null;
