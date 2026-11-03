@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { rememberNotes } from "@/lib/sessionNotes";
 import { preflightNotes, MAX_CHARS } from "@/lib/preflight";
 import { PreflightPanel } from "./PreflightPanel";
-import { IconAlert, IconDatabase, IconLock, IconUpload } from "@/components/Icons";
+import { IconAlert, IconDatabase, IconLock, IconSparkle, IconUpload } from "@/components/Icons";
+import { Modal } from "@/components/Modal";
+import { useToast } from "@/components/Toast";
 
 export interface ExampleOption {
   id: string;
@@ -34,7 +36,8 @@ export function NewMeetingForm(props: {
   canSubmit: boolean;
 }) {
   const router = useRouter();
-  const ids = { notes: useId(), start: useId(), end: useId(), tz: useId(), file: useId() };
+  const toast = useToast();
+  const ids ={ notes: useId(), start: useId(), end: useId(), tz: useId(), file: useId() };
   const init = props.examples.find((e) => e.id === props.initialExample) ?? null;
   const [notes, setNotes] = useState(init?.notes ?? "");
   const [start, setStart] = useState(init?.period.start ?? "");
@@ -84,6 +87,7 @@ export function NewMeetingForm(props: {
     setLoaded(e);
     setFieldErr({});
     setFileMsg(null);
+    toast({ tone: "info", title: "Synthetic example loaded", body: e.title });
   }
 
   async function onFile(f: File | undefined) {
@@ -96,6 +100,7 @@ export function NewMeetingForm(props: {
     setNotes(text);
     setLoaded(null);
     setFileMsg(`Loaded ${f.name}.`);
+    toast({ tone: "success", title: "Notes loaded", body: f.name });
     if (fileRef.current) fileRef.current.value = "";
   }
 
@@ -246,25 +251,36 @@ export function NewMeetingForm(props: {
             </div>
           )}
           {showPreflight && <PreflightPanel result={preflight} />}
-          {phase.k === "confirm" && (
-            <div className="banner warn" role="alertdialog" aria-labelledby="confirm-msg">
-              <IconAlert />
-              <div className="stack" style={{ gap: 8 }}>
-                <span id="confirm-msg">
-                  <strong>Submitting now may use an AI run and could return Needs Clarification.</strong> The pre-submit check found{" "}
-                  {preflight.warnings.length} possible gap{preflight.warnings.length > 1 ? "s" : ""} in the notes.
-                </span>
-                <div className="row">
-                  <button type="button" className="btn sm primary" onClick={() => void submit({ acceptWarnings: true })} autoFocus>
-                    Submit anyway
-                  </button>
-                  <button type="button" className="btn sm" onClick={reviewNotes}>
-                    Review notes
-                  </button>
-                </div>
+          <Modal
+            open={phase.k === "confirm"}
+            onClose={reviewNotes}
+            tone="unknown"
+            eyebrow="Before you submit"
+            title={`${preflight.warnings.length} possible gap${preflight.warnings.length === 1 ? "" : "s"} in the notes`}
+            footer={
+              <div className="row" style={{ marginLeft: "auto" }}>
+                <button type="button" className="btn" onClick={reviewNotes}>
+                  Review notes
+                </button>
+                <button type="button" className="btn primary" onClick={() => void submit({ acceptWarnings: true })} autoFocus>
+                  Submit anyway
+                </button>
               </div>
-            </div>
-          )}
+            }
+          >
+            <p id="confirm-msg">
+              <strong>Submitting now may use an AI run and could return Needs Clarification.</strong> These warnings never block submission, but fixing them
+              first usually gives a clearer result.
+            </p>
+            <ul className="modal-list">
+              {preflight.warnings.map((w, n) => (
+                <li key={n}>
+                  <IconAlert width={15} height={15} aria-hidden />
+                  <span>{w.label}</span>
+                </li>
+              ))}
+            </ul>
+          </Modal>
           <div className="submit-bar">
           <p className="hint">Nothing is sent or approved. You get a draft plus a readiness check.</p>
           <button type="submit" className="btn primary" disabled={busy || !props.canSubmit} style={{ height: 40, minWidth: 180 }}>
@@ -273,7 +289,9 @@ export function NewMeetingForm(props: {
                 <span className="pulse" aria-hidden /> Submitting…
               </>
             ) : (
-              "Analyze meeting"
+              <>
+                <IconSparkle width={16} height={16} /> Analyze meeting
+              </>
             )}
           </button>
           </div>

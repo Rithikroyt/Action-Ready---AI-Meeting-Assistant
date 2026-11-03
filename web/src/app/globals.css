@@ -1,42 +1,65 @@
-/* ActionReady — calm light / graphite with one indigo accent. Colours are semantic; status is never colour-only. */
+/* ActionReady "Bloom" theme — soft peach canvas, lavender accent, lime / crimson / amber status, chartreuse and tomato
+   highlights. Colours are semantic; status is never colour-only (every badge also has an icon and text). */
 :root {
   color-scheme: light;
-  --bg: #f7f7f5; /* canvas */
+  /* palette */
+  --peach: #ffd9c2;
+  --peach-soft: #fff3ea;
+  --lavender: #b9a6ff;
+  --lavender-soft: #f1ecff;
+  --lime: #84cc16;
+  --lime-soft: #f2fbdf;
+  --chartreuse: #c4ee1c;
+  --crimson: #c0143c;
+  --tomato: #ff6347;
+  --plum: #241339;
+
+  --bg: #fff7f1; /* soft peach canvas */
   --surface: #ffffff;
-  --surface-2: #f8f9fb;
-  --surface-3: #eef0f3;
-  --border: #e4e7ec;
-  --border-strong: #c9ced6;
-  --text: #171a23;
-  --text-2: #475467;
-  --text-3: #667085; /* 4.8:1 on white */
-  --graphite: #475467;
-  --accent: #4f46e5;
-  --accent-hover: #4338ca;
-  --accent-soft: #eef2ff;
-  --accent-ink: #3730a3;
+  --surface-2: #fffaf6;
+  --surface-3: #fbeee5;
+  --border: #f0e1d6;
+  --border-strong: #e0c6b4;
+  --text: #1f1430; /* deep plum ink */
+  --text-2: #4a3f5c;
+  --text-3: #6b6180; /* 5.3:1 on white */
+  --graphite: #4a3f5c;
+  --accent: #6d4aff; /* deep lavender */
+  --accent-hover: #5935f0;
+  --accent-soft: #f1ecff;
+  --accent-ink: #4a2bc7;
 
-  --ready: #0f766e; /* verified / ready */
-  --ready-bg: #ecfdf3;
-  --ready-line: #abefc6;
-  --blocked: #b42318;
-  --blocked-bg: #fef3f2;
-  --blocked-line: #fecdca;
-  --unknown: #a16207; /* unknown / attention */
-  --unknown-bg: #fffaeb;
-  --unknown-line: #fedf89;
-  --neutral: #475467;
-  --neutral-bg: #f2f4f7;
-  --neutral-line: #d0d5dd;
+  --ready: #3f7a0e; /* lime, darkened for text contrast */
+  --ready-bg: #f2fbdf;
+  --ready-line: #c8ec8f;
+  --blocked: #b8123a; /* crimson */
+  --blocked-bg: #fff0f2;
+  --blocked-line: #ffc3cd;
+  --unknown: #a05a00; /* amber */
+  --unknown-bg: #fff7e3;
+  --unknown-line: #fbdc94;
+  --neutral: #5b5170;
+  --neutral-bg: #f6f2f8;
+  --neutral-line: #ddd3e3;
 
-  --radius: 10px;
-  --radius-sm: 6px;
-  --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.05);
-  --shadow-2: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
-  --ring: 0 0 0 3px rgba(79, 70, 229, 0.28);
+  /* workload chart */
+  --wl-existing: #8b6dff;
+  --wl-new: #b5e212;
+  --wl-over: #ff6347;
+
+  --radius: 16px;
+  --radius-sm: 10px;
+  --shadow-1: 0 1px 2px rgba(60, 25, 70, 0.05);
+  --shadow-2: 0 6px 20px -8px rgba(80, 40, 110, 0.18), 0 1px 3px rgba(80, 40, 110, 0.06);
+  --shadow-3: 0 24px 60px -20px rgba(90, 45, 140, 0.35), 0 4px 12px rgba(90, 45, 140, 0.08);
+  --ring: 0 0 0 3px rgba(109, 74, 255, 0.3);
   --ease: cubic-bezier(0.2, 0, 0, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --grad-brand: linear-gradient(135deg, #6d4aff 0%, #b06bff 45%, #ff8a65 100%);
+  --grad-soft: linear-gradient(135deg, #f1ecff 0%, #fff3ea 60%, #f2fbdf 100%);
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-display-face), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono-face), ui-monospace, "SFMono-Regular", Consolas, monospace;
 }
 

@@ -8,7 +8,7 @@ export const metadata = { title: "Sign in" };
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
-  if (await getSession()) redirect("/");
+  if (await getSession()) redirect("/dashboard");
   const cfg = getConfig();
   const authReady = !!cfg.appPassword && !!cfg.sessionSecret;
   return (

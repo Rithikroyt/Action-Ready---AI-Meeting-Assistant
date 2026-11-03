@@ -18,7 +18,7 @@ export async function login(_prev: LoginState, form: FormData): Promise<LoginSta
     return { error: "That passphrase is not correct." };
   }
   await createSession();
-  redirect("/");
+  redirect("/dashboard");
 }
 
 export async function logout() {

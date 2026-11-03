@@ -16,7 +16,7 @@ export function workloadFormulas(w: OwnerWorkload): string[] {
   return out;
 }
 
-// Existing confirmed work (graphite) + new proposed work (indigo) against a capacity marker; overflow hatched red.
+// Existing confirmed work (lavender) + new proposed work (chartreuse) against a capacity marker; overflow hatched red.
 /** `compact` hides record IDs, formulas and the capacity footnote (used side by side in the what-if view). */
 export function WorkloadBar({ w, compact = false, name }: { w: OwnerWorkload; compact?: boolean; name?: string }) {
   const existing = w.existing_open_hours;
@@ -72,11 +72,11 @@ export function WorkloadBar({ w, compact = false, name }: { w: OwnerWorkload; co
 
       <div className="legend" aria-hidden>
         <span>
-          <span className="swatch" style={{ background: "var(--graphite)" }} />
+          <span className="swatch" style={{ background: "var(--wl-existing)" }} />
           Existing confirmed work
         </span>
         <span>
-          <span className="swatch" style={{ background: "var(--accent)" }} />
+          <span className="swatch" style={{ background: "var(--wl-new)" }} />
           New proposed work
         </span>
         {overStart !== null && (

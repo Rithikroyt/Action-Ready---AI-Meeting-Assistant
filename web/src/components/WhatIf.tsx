@@ -7,6 +7,7 @@ import { officialInputs, simulate, suggestions } from "@/lib/whatif";
 import { ReadinessBadge } from "./Badges";
 import { WorkloadBar } from "./WorkloadBar";
 import { ownerName } from "@/lib/decision";
+import { useToast } from "./Toast";
 
 // Local what-if: in-memory state only, no network, never writes to the official job object.
 const ownerVerdict = (w: OwnerWorkload): Readiness => (w.status === "OVER_CAPACITY" ? "BLOCKED" : w.status === "WITHIN" ? "READY" : "UNKNOWN");
@@ -62,9 +63,11 @@ function Simulator({ job, official }: { job: JobView; official: OwnerWorkload })
   // The overload itself is what the simulation recalculates (demo code OVER_CAPACITY, live n8n code CAPACITY_OVERLOAD).
   const otherIssues = job.issues.filter((i) => i.severity !== "NOTICE" && i.code !== "OVER_CAPACITY" && i.code !== "CAPACITY_OVERLOAD").length;
   const officialLabel = job.mode === "LIVE" ? "Official n8n result" : "Official result · synthetic demo";
+  const toast = useToast();
   const reset = () => {
     setNewH(String(start.new_hours));
     setCapH(String(start.capacity_hours));
+    toast({ tone: "info", title: "Simulation reset", body: "Back to the official numbers. Nothing was saved." });
   };
 
   return (

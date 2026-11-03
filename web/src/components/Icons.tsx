@@ -101,3 +101,44 @@ export const IconSearch = (p: SVGProps<SVGSVGElement>) => (
     <path d="m20 20-3.5-3.5" />
   </svg>
 );
+export const IconArrowRight = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M5 12h14M13 6l6 6-6 6" />
+  </svg>
+);
+export const IconSparkle = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" />
+    <path d="M19 15l.7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7z" />
+  </svg>
+);
+export const IconShield = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z" />
+    <path d="m9 12 2 2 4-4" />
+  </svg>
+);
+export const IconUsers = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <circle cx="9" cy="8" r="3.5" />
+    <path d="M2.5 20c.8-3.4 3.4-5.5 6.5-5.5s5.7 2.1 6.5 5.5" />
+    <path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c1.8.7 3 2.6 3.5 5.2" />
+  </svg>
+);
+export const IconDoc = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M7 3h7l5 5v13H7z" />
+    <path d="M14 3v5h5M10 13h6M10 17h6" />
+  </svg>
+);
+export const IconCopy = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <rect x="8" y="8" width="12" height="12" rx="2" />
+    <path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" />
+  </svg>
+);
+export const IconChart = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+  </svg>
+);

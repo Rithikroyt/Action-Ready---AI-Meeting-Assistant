@@ -1,4 +1,6 @@
-# ActionReady UI architecture (v0.4, decision-first)
+# ActionReady UI architecture (v0.5 "Bloom", decision-first)
+
+v0.5 adds a public landing page, the Bloom visual theme (`src/app/theme.css`: soft-peach canvas, lavender accent, lime / crimson / amber status, chartreuse and tomato highlights), page and tab transitions, toast notifications (`components/Toast.tsx`) and accessible pop-up dialogs on the native `<dialog>` (`components/Modal.tsx`). Status logic, contracts and safety rules are unchanged. All motion is removed under `prefers-reduced-motion`.
 
 > From meeting notes to verified, feasible action.
 
@@ -7,8 +9,9 @@ The website displays, explains, filters and simulates. The n8n workflow is autho
 ## Route map
 | Route | Purpose | Data |
 |---|---|---|
-| `/login` | Single-owner passphrase sign-in | server action |
-| `/` | Overview: counts, search, filters, sort, recent cases with the primary reason | server: `overview()` → `toCaseRow()`; client: `CaseList` (pure filtering) |
+| `/` | Public landing page: animated hero, how it works, the three statuses, the workload math, safety principles, "How a case is decided" walkthrough pop-up | static content only; no case data |
+| `/login` | Single-owner passphrase sign-in (skipped when `ACTIONREADY_OPEN_ACCESS=true` in demo mode) | server action |
+| `/dashboard` | Overview: welcome banner, readiness donut, counts, search, filters, sort, recent cases with the primary reason | server: `overview()` → `toCaseRow()`; client: `CaseList` (pure filtering) |
 | `/meetings/new` | Notes (paste or `.txt`), explicit period, read-only project, synthetic examples, pre-submit check | POST `/api/meetings` |
 | `/cases/[jobId]` | Decision-first case workspace | server first render; client polls GET `/api/jobs/:id` until the job is final |
 | `/api/meetings`, `/api/jobs/[jobId]` | Server-only adapters to n8n (secret stays on the server) | unchanged in v0.4 |
@@ -31,7 +34,10 @@ The website displays, explains, filters and simulates. The n8n workflow is autho
 | `ReadinessBadge`, `ReviewBadge`, `ApprovalBadge`, `ModeBadge` | `components/Badges.tsx` | thin wrappers over `lib/status.ts`; `ModeBadge` covers Synthetic demo, Live n8n and Disconnected |
 | `DecisionCard` | `components/DecisionCard.tsx` | primary and secondary conclusions, recorded reasons, workflow questions |
 | `WorkloadBar`, `workloadFormulas` | `components/WorkloadBar.tsx` | existing, new, overflow, capacity marker; null-safe labels |
-| `WhatIf` | `components/WhatIf.tsx` | unchanged behaviour; uses display names |
+| `WhatIf` | `components/WhatIf.tsx` | unchanged behaviour; uses display names; reset shows a toast |
+| `Modal` | `components/Modal.tsx` | native `<dialog>`: focus trap, Esc and backdrop close; used for the pre-submit warning, status guide and walkthrough |
+| `ToastProvider`, `useToast` | `components/Toast.tsx` | app-level notifications (copied, loaded, reset, analysis complete); never announce an unrecorded result |
+| `HeroArt`, `HowItWorksButton`, `Reveal`, `ReadinessDonut` | `components/*.tsx` | landing illustration, step-through pop-up, scroll reveal, dashboard readiness chart |
 | `RelTime`, `LocalTime` | `components/Time.tsx` | render after mount, so server HTML and hydration match |
 | `CaseList` | `app/CaseList.tsx` | search, filters, sort, empty and no-result states |
 | `CaseWorkspace` (+ `CaseHeader`, `Processing`, `ActionList`, `DraftPanel`, `EvidencePanel`, `WorkloadDetail`, `History`, `TechnicalDetails`) | `app/cases/[jobId]/CaseWorkspace.tsx` | polling logic unchanged |

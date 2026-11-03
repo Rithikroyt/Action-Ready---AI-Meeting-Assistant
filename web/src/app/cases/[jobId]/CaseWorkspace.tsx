@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ActionItem, EvidenceRecord, Issue, JobView, ToolEvidence } from "@/lib/contract";
@@ -13,9 +13,12 @@ import { recallNotes } from "@/lib/sessionNotes";
 import { Badge, ModeBadge } from "@/components/Badges";
 import { StatusBadge, StatusSummary } from "@/components/StatusBadge";
 import { DecisionCard } from "@/components/DecisionCard";
-import { IconAlert, IconDatabase, IconHelp, IconLock, IconRefresh } from "@/components/Icons";
+import { IconAlert, IconCopy, IconDatabase, IconHelp, IconLock, IconRefresh } from "@/components/Icons";
 import { WorkloadBar, workloadFormulas } from "@/components/WorkloadBar";
 import { WhatIf } from "@/components/WhatIf";
+import { Modal } from "@/components/Modal";
+import { useToast } from "@/components/Toast";
+import { APPROVAL, READINESS, REVIEW, type StatusDef } from "@/lib/status";
 
 type Load =
   | { k: "ok"; job: JobView; checkedAt: number }
@@ -76,6 +79,19 @@ export function CaseWorkspace({ jobId, initial }: { jobId: string; initial: Load
     };
   }, [pollingActive, polls, check]);
 
+  // Announce only a transition this page actually observed (processing → final), never a cached result.
+  const toast = useToast();
+  const wasFinished = useRef(finished);
+  useEffect(() => {
+    if (finished && !wasFinished.current && job)
+      toast(
+        job.execution_status === "FAILED"
+          ? { tone: "error", title: "Analysis failed", body: "The workflow recorded a failure. See the details below." }
+          : { tone: "success", title: "Analysis complete", body: "The workflow recorded the official result. Review it below." },
+      );
+    wasFinished.current = finished;
+  }, [finished, job, toast]);
+
   // A clock for "elapsed" / "last checked" text only; it stops once the job is final.
   useEffect(() => {
     if (finished) return;
@@ -92,7 +108,7 @@ export function CaseWorkspace({ jobId, initial }: { jobId: string; initial: Load
           </div>
           <h1 style={{ fontSize: 18 }}>Case not found</h1>
           <p className="muted">This job does not exist for your account, or it has expired from the workflow. Nothing was changed.</p>
-          <Link href="/" className="btn">
+          <Link href="/dashboard" className="btn">
             Back to overview
           </Link>
         </div>
@@ -135,19 +151,40 @@ export function CaseWorkspace({ jobId, initial }: { jobId: string; initial: Load
   );
 }
 
+function CopyId({ value }: { value: string }) {
+  const toast = useToast();
+  return (
+    <button
+      type="button"
+      className="case-id copyable"
+      title="Copy case ID"
+      onClick={() =>
+        navigator.clipboard
+          ?.writeText(value)
+          .then(() => toast({ tone: "success", title: "Case ID copied", body: value }))
+          .catch(() => toast({ tone: "warn", title: "Could not copy", body: "Your browser blocked clipboard access." }))
+      }
+    >
+      <code>{value}</code>
+      <IconCopy width={13} height={13} aria-hidden />
+      <span className="sr-only">Copy case ID</span>
+    </button>
+  );
+}
+
 function CaseHeader({ job }: { job: JobView | null }) {
   const exec = job ? executionStatus(job) : null;
   return (
     <div className="case-head">
       <nav className="crumbs" aria-label="Breadcrumb">
-        <Link href="/">Overview</Link>
+        <Link href="/dashboard">Overview</Link>
         <span aria-hidden>/</span>
         <span aria-current="page">Case</span>
       </nav>
       <h1>{job?.meeting_title ?? (job?.case_id ? `Case ${job.case_id}` : "Meeting analysis")}</h1>
       <div className="case-meta">
         {job && <ModeBadge mode={job.mode} />}
-        {job?.case_id && <code className="case-id">{job.case_id}</code>}
+        {job?.case_id && <CopyId value={job.case_id} />}
         {exec && <StatusBadge def={exec} />}
         {job?.version !== null && job?.version !== undefined && (
           <span className="small muted">
@@ -249,9 +286,57 @@ function Processing({
 
 // ---------------------------------------------------------------------------
 
+const TAB_ORDER = ["evidence", "workload", "history"] as const;
+type TabId = (typeof TAB_ORDER)[number];
+
+/** Pop-up glossary of the three official status families, generated from the central status module. */
+function StatusGuide() {
+  const [open, setOpen] = useState(false);
+  // The status tables may map several raw values to one state; list each visible state once.
+  const unique = (t: Record<string, StatusDef>) => [...new Map(Object.values(t).map((d) => [d.label, d])).values()];
+  const families = [
+    { title: "AI review", hint: "Does the draft match the meeting notes?", defs: unique(REVIEW) },
+    { title: "Operational readiness", hint: "Is there recorded capacity for the work?", defs: unique(READINESS) },
+    { title: "Human approval", hint: "Has a person signed off?", defs: unique(APPROVAL) },
+  ];
+  return (
+    <>
+      <button type="button" className="btn ghost sm guide-btn" onClick={() => setOpen(true)}>
+        <IconHelp width={14} height={14} /> How to read these statuses
+      </button>
+      <Modal open={open} onClose={() => setOpen(false)} eyebrow="Status guide" title="Three answers, never merged" size="lg">
+        <p className="muted" style={{ marginBottom: 14 }}>
+          A passing AI review never means the plan is feasible, and neither means a person approved it. Each family is decided separately.
+        </p>
+        <div className="guide-grid">
+          {families.map((f) => (
+            <section key={f.title} className="guide-col">
+              <h3>{f.title}</h3>
+              <p className="hint">{f.hint}</p>
+              <ul>
+                {f.defs.map((d) => (
+                  <li key={d.label}>
+                    <StatusBadge def={d} />
+                    <span className="small">{d.description}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      </Modal>
+    </>
+  );
+}
+
 function Result({ job, jobId }: { job: JobView; jobId: string }) {
   const [selected, setSelected] = useState(0);
-  const [tab, setTab] = useState<"evidence" | "workload" | "history">("evidence");
+  const [tab, setTabRaw] = useState<TabId>("evidence");
+  const [dir, setDir] = useState<"fwd" | "back">("fwd");
+  const setTab = (v: TabId) => {
+    setDir(TAB_ORDER.indexOf(v) >= TAB_ORDER.indexOf(tab) ? "fwd" : "back");
+    setTabRaw(v);
+  };
   const notes = useMemo(() => recallNotes(jobId), [jobId]);
   const decision = useMemo(() => deriveDecision(job), [job]);
   const action = job.actions[selected] ?? null;
@@ -268,6 +353,10 @@ function Result({ job, jobId }: { job: JobView; jobId: string }) {
 
   return (
     <>
+      <div className="status-head">
+        <span className="section-label">Official status</span>
+        <StatusGuide />
+      </div>
       <StatusSummary
         items={[
           {
@@ -299,7 +388,7 @@ function Result({ job, jobId }: { job: JobView; jobId: string }) {
             { id: "history", label: "Review history", count: job.review_history.length || undefined },
           ]}
         />
-        <div className="tabpanel fade-in" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} tabIndex={0} key={tab}>
+        <div className={`tabpanel tab-anim ${dir}`} role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} tabIndex={0} key={tab}>
           {tab === "evidence" && <EvidencePanel job={job} action={action} notes={notes} />}
           {tab === "workload" && <WorkloadDetail job={job} />}
           {tab === "history" && <History job={job} />}
@@ -367,6 +456,18 @@ function UnvalidatedNote({ job }: { job: JobView }) {
 
 function Tabs<T extends string>({ value, onChange, items }: { value: T; onChange: (v: T) => void; items: { id: T; label: string; count?: number }[] }) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  // Sliding indicator under the selected tab; re-measured on resize so it never drifts.
+  const [bar, setBar] = useState<{ left: number; width: number } | null>(null);
+  const active = items.findIndex((t) => t.id === value);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = refs.current[active];
+      if (el) setBar({ left: el.offsetLeft, width: el.offsetWidth });
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [active, items.length]);
   const onKey = (e: KeyboardEvent, i: number) => {
     let n = i;
     if (e.key === "ArrowRight") n = (i + 1) % items.length;
@@ -399,6 +500,7 @@ function Tabs<T extends string>({ value, onChange, items }: { value: T; onChange
           {t.count ? <span className="count">{t.count}</span> : null}
         </button>
       ))}
+      {bar && <span className="tab-indicator" aria-hidden style={{ transform: `translateX(${bar.left}px)`, width: bar.width }} />}
     </div>
   );
 }
