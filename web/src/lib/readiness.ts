@@ -350,3 +350,61 @@ function finish(workload: OwnerWorkload[], issues: Issue[], questions: string[])
       : "READY";
   return { operational_readiness, workload, issues, clarification_questions: questions };
 }
+
+// ---- observed tool-step parsing (mirrors the n8n "Operational Readiness Check" node) ----
+
+export interface ParsedObservation {
+  outcome: "OK" | "EMPTY" | "ERROR";
+  rows: Record<string, unknown>[] | null;
+  error: string | null;
+}
+
+/** Peels the serialized/wrapper layers n8n puts around a tool observation (JSON strings, [[...]], {response}). */
+function unwrapObservation(raw: unknown): unknown {
+  let v = raw;
+  for (let n = 0; n < 7; n++) {
+    if (typeof v === "string") {
+      try {
+        v = JSON.parse(v);
+        continue;
+      } catch {
+        break;
+      }
+    }
+    if (Array.isArray(v) && v.length === 1 && Array.isArray(v[0])) {
+      v = v[0];
+      continue;
+    }
+    const first: unknown = Array.isArray(v) && v.length === 1 ? v[0] : null;
+    if (first && typeof first === "object" && (first as { response?: unknown }).response !== undefined && (first as { commitment_id?: unknown }).commitment_id === undefined && (first as { capacity_id?: unknown }).capacity_id === undefined) {
+      v = (first as { response: unknown }).response;
+      continue;
+    }
+    if (v && typeof v === "object" && !Array.isArray(v) && "response" in v && (v as { response: unknown }).response !== undefined) {
+      v = (v as { response: unknown }).response;
+      continue;
+    }
+    break;
+  }
+  return v;
+}
+
+/**
+ * Classifies one observed Commitment_Register / Capacity_Lookup result. A row list is OK (or EMPTY when it has
+ * no rows). The n8n Data Table tool reports a successful zero-row lookup as an empty string, so exactly that
+ * (after trimming) is EMPTY too. Anything else — null, undefined, other text, objects — fails closed as ERROR.
+ * A tool that was never called has no observation to parse and stays TOOL_EVIDENCE_MISSING in computeReadiness.
+ */
+export function parseToolObservation(raw: unknown): ParsedObservation {
+  const o = unwrapObservation(raw);
+  if (Array.isArray(o)) {
+    const rows = o.filter((x): x is Record<string, unknown> => !!x && typeof x === "object" && Object.keys(x).length > 0);
+    return { outcome: rows.length ? "OK" : "EMPTY", rows, error: null };
+  }
+  if (typeof o === "string" && o.trim() === "") return { outcome: "EMPTY", rows: [], error: null };
+  if (o && typeof o === "object") {
+    const e = (o as { error?: unknown; message?: unknown }).error || (o as { message?: unknown }).message;
+    if (e) return { outcome: "ERROR", rows: null, error: String(e).slice(0, 200) };
+  }
+  return { outcome: "ERROR", rows: null, error: "Unrecognised tool response (not a row list)." };
+}

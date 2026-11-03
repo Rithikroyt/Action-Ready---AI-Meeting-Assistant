@@ -1,6 +1,6 @@
 // OFFLINE tests of the deterministic readiness rules against synthetic fixtures.
 import { describe, expect, it } from "vitest";
-import { computeReadiness, resolveOwner, type ReadinessInput } from "@/lib/readiness";
+import { computeReadiness, parseToolObservation, resolveOwner, type ReadinessInput } from "@/lib/readiness";
 import { DEMO_PROJECT_ID, FIXTURE_NOW, ROSTER, SCENARIOS, type Scenario } from "@/lib/fixtures";
 import type { ToolEvidence } from "@/lib/contract";
 
@@ -144,5 +144,91 @@ describe("guards", () => {
     expect(resolveOwner("Maya Chen", ROSTER)).toEqual({ owner_id: "maya" });
     expect(resolveOwner("Sam", ROSTER)).toEqual({ error: "UNRESOLVED" });
     expect(resolveOwner("Maya", [...ROSTER, { owner_id: "mo", names: ["Maya Ortiz"] }])).toEqual({ error: "AMBIGUOUS" });
+  });
+});
+
+describe("observed tool-step parsing (n8n Data Table observations)", () => {
+  // Observation strings exactly as recorded in the Reviewer's intermediateSteps (live executions 821 and 837).
+  const LIVE_EMPTY = '""';
+  const LIVE_COMMITMENT_ROWS = JSON.stringify([
+    { commitment_id: "CMT-ATLAS-0007", project_id: "DEMO_ATLAS", owner_id: "maya", remaining_hours: 6 },
+    { commitment_id: "CMT-ATLAS-0003", project_id: "DEMO_ATLAS", owner_id: "maya", remaining_hours: 0 },
+  ]);
+  const LIVE_CAPACITY_ROWS = JSON.stringify([{ capacity_id: "CAP-ATLAS-maya-2026W45", project_id: "DEMO_ATLAS", owner_id: "maya", available_hours: 8 }]);
+
+  const evidence = (tool: string, raw: unknown): ToolEvidence => {
+    const p = parseToolObservation(raw);
+    const idKey = tool === "Commitment_Register" ? "commitment_id" : "capacity_id";
+    const ids = (p.rows ?? []).map((r) => String(r[idKey]));
+    return { tool, args: { owner_id: "maya" }, returned_ids: ids, result_count: p.rows ? p.rows.length : null, retrieved_at: null, max_source_updated_at: null, outcome: p.outcome };
+  };
+  const codes = (r: ReturnType<typeof computeReadiness>) => r.issues.map((i) => i.code);
+
+  it('Capacity_Lookup observation "" is a successful zero-row lookup', () => {
+    for (const raw of [LIVE_EMPTY, "", "   "]) expect(parseToolObservation(raw)).toEqual({ outcome: "EMPTY", rows: [], error: null });
+  });
+
+  it('"[]" and a wrapped empty list are EMPTY', () => {
+    expect(parseToolObservation("[]")).toEqual({ outcome: "EMPTY", rows: [], error: null });
+    expect(parseToolObservation([])).toEqual({ outcome: "EMPTY", rows: [], error: null });
+    expect(parseToolObservation('[{"response":"[]"}]').outcome).toBe("EMPTY");
+  });
+
+  it("a valid row list is DATA (OK), including the existing wrapper formats", () => {
+    const p = parseToolObservation(LIVE_CAPACITY_ROWS);
+    expect(p.outcome).toBe("OK");
+    expect(p.rows).toHaveLength(1);
+    expect(parseToolObservation(JSON.stringify([{ response: LIVE_CAPACITY_ROWS }])).outcome).toBe("OK");
+    expect(parseToolObservation({ response: LIVE_CAPACITY_ROWS }).outcome).toBe("OK");
+    expect(parseToolObservation(JSON.stringify([JSON.parse(LIVE_CAPACITY_ROWS)])).outcome).toBe("OK");
+  });
+
+  it("malformed or unrecognised results still fail closed", () => {
+    for (const raw of ["No data found", '"error"', "{}", null, undefined, 0, false, {}, { response: undefined }])
+      expect(parseToolObservation(raw).outcome).toBe("ERROR");
+    expect(parseToolObservation({ error: "Data table not found" })).toEqual({ outcome: "ERROR", rows: null, error: "Data table not found" });
+    const r = computeReadiness(
+      inputFor(byId("missing-capacity"), { require_tool_evidence: true, tool_calls: [evidence("Commitment_Register", LIVE_COMMITMENT_ROWS), evidence("Capacity_Lookup", "No data found")] }),
+    );
+    expect(codes(r)).toContain("TOOL_EVIDENCE_MISSING");
+    expect(r.operational_readiness).toBe("UNKNOWN");
+  });
+
+  it("Capacity_Lookup never called → TOOL_EVIDENCE_MISSING (no empty result is fabricated)", () => {
+    const r = computeReadiness(inputFor(byId("missing-capacity"), { require_tool_evidence: true, tool_calls: [evidence("Commitment_Register", LIVE_COMMITMENT_ROWS)] }));
+    expect(r.issues.filter((i) => i.code === "TOOL_EVIDENCE_MISSING").map((i) => i.message)).toEqual([expect.stringContaining("Capacity_Lookup")]);
+    expect(r.operational_readiness).toBe("UNKNOWN");
+  });
+
+  it('Commitment_Register observation "" is a successful empty lookup', () => {
+    const e = evidence("Commitment_Register", LIVE_EMPTY);
+    expect(e).toMatchObject({ outcome: "EMPTY", returned_ids: [], result_count: 0 });
+    const s = byId("overload");
+    const r = computeReadiness(
+      inputFor(s, { commitments: { ...s.commitments, rows: [] } as ReadinessInput["commitments"], require_tool_evidence: true, tool_calls: [e, evidence("Capacity_Lookup", LIVE_CAPACITY_ROWS)] }),
+    );
+    expect(codes(r)).not.toContain("TOOL_EVIDENCE_MISSING");
+    expect(r.workload[0]).toMatchObject({ existing_open_hours: 0, projected_load: 4, available_hours: 8, capacity_margin: 4 });
+  });
+
+  it("Test A (overload) with live-shaped observations is still BLOCKED, 6 + 4 = 10 vs 8, margin −2", () => {
+    const r = computeReadiness(
+      inputFor(byId("overload"), { require_tool_evidence: true, tool_calls: [evidence("Commitment_Register", LIVE_COMMITMENT_ROWS), evidence("Capacity_Lookup", LIVE_CAPACITY_ROWS)] }),
+    );
+    expect(r.operational_readiness).toBe("BLOCKED");
+    expect(r.workload[0]).toMatchObject({ existing_open_hours: 6, new_proposed_hours: 4, projected_load: 10, available_hours: 8, capacity_margin: -2 });
+    expect(codes(r)).not.toContain("TOOL_EVIDENCE_MISSING");
+    expect(codes(r)).not.toContain("CONTEXT_CHANGED");
+  });
+
+  it('Test B (missing capacity, observation "") → UNKNOWN for CAPACITY_MISSING only, capacity and margin null', () => {
+    const r = computeReadiness(
+      inputFor(byId("missing-capacity"), { require_tool_evidence: true, tool_calls: [evidence("Commitment_Register", LIVE_COMMITMENT_ROWS), evidence("Capacity_Lookup", LIVE_EMPTY)] }),
+    );
+    expect(r.operational_readiness).toBe("UNKNOWN");
+    expect(codes(r)).toContain("CAPACITY_MISSING");
+    expect(codes(r)).not.toContain("TOOL_EVIDENCE_MISSING");
+    expect(codes(r)).not.toContain("CONTEXT_CHANGED");
+    expect(r.workload[0]).toMatchObject({ existing_open_hours: 6, new_proposed_hours: 4, projected_load: 10, available_hours: null, capacity_margin: null });
   });
 });
