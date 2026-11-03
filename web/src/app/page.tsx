@@ -5,6 +5,7 @@ import { requireSession, OWNER } from "@/lib/session";
 import { overview } from "@/lib/service";
 import { getConfig } from "@/lib/env";
 import { toCaseRow } from "@/lib/caseList";
+import { REGISTRY_TEMPORARY } from "@/lib/registry";
 import { CaseList } from "./CaseList";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export default async function OverviewPage() {
           New meeting
         </Link>
       </div>
-      <CaseList rows={rows} disconnected={cfg.mode === "live" && !cfg.n8n} />
+      <CaseList rows={rows} disconnected={cfg.mode === "live" && !cfg.n8n} temporaryHistory={REGISTRY_TEMPORARY} />
     </AppShell>
   );
 }

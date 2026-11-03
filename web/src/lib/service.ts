@@ -4,7 +4,10 @@ import { isFinal, normalizeJob, type JobView, type Submission } from "./contract
 import { getConfig } from "./env";
 import { fetchJobFromN8n, submitToN8n } from "./n8n";
 import { buildDemoBody, demoScenarioFor } from "./demo";
-import { addJob, findByRequest, findJob, listJobs, updateSnapshot, type RegistryEntry } from "./registry";
+import { addJob, findByRequest, findJob, listJobs, registryWritable, updateSnapshot, type RegistryEntry } from "./registry";
+
+const NOT_RECORDABLE =
+  "This server cannot record cases (its job storage is not writable), so the meeting was not sent. Set ACTIONREADY_DATA_DIR to a writable folder.";
 
 export const fingerprint = (s: Submission) =>
   createHash("sha256").update(JSON.stringify([s.notes, s.period_start, s.period_end, s.timezone])).digest("hex");
@@ -44,12 +47,15 @@ export async function submitMeeting(owner: string, sub: Submission): Promise<Sub
         kind: "demo_unsupported",
         message: "Demo mode only evaluates the labeled synthetic examples, with their notes and period unchanged. Switch to live mode to analyze your own notes.",
       };
+    if (!(await registryWritable())) return { kind: "unavailable", message: NOT_RECORDABLE };
     const body = buildDemoBody(scenario, sub);
     await addJob(entry(body.job_id, "DEMO", body));
     return { kind: "accepted", job_id: body.job_id, reused: false };
   }
 
   if (!cfg.n8n) return { kind: "unavailable", message: "Live mode is not configured on the server: " + cfg.problems.join(", ") };
+  // Check first: an accepted run that cannot be recorded would be invisible here (and is a paid model run).
+  if (!(await registryWritable())) return { kind: "unavailable", message: NOT_RECORDABLE };
   const out = await submitToN8n(cfg.n8n, sub);
   if (out.kind !== "accepted") return out;
   await addJob(entry(out.job_id, "LIVE"));

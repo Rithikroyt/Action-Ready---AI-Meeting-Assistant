@@ -1,5 +1,5 @@
 import "server-only";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { DataMode, JobView } from "./contract";
 
@@ -20,8 +20,26 @@ export interface RegistryEntry {
   demo_body?: unknown;
 }
 
-const FILE = path.join(process.cwd(), ".data", "jobs.json");
+// Serverless hosts make the app directory read-only (on Vercel only /tmp is writable), so the folder is
+// configurable and defaults to /tmp there. /tmp is per-instance and temporary: history there can reset.
+const DIR = process.env.ACTIONREADY_DATA_DIR?.trim() || (process.env.VERCEL ? "/tmp/actionready" : path.join(process.cwd(), ".data"));
+const FILE = path.join(DIR, "jobs.json");
+/** True when case history lives in temporary storage that the host may discard. */
+export const REGISTRY_TEMPORARY = DIR === "/tmp" || DIR.startsWith("/tmp/");
 let chain: Promise<unknown> = Promise.resolve();
+
+/** Probe that a job can be recorded BEFORE anything is sent, so no run is started that this app cannot track. */
+export async function registryWritable(): Promise<boolean> {
+  const probe = path.join(DIR, `.probe.${process.pid}.${Date.now()}`);
+  try {
+    await mkdir(DIR, { recursive: true });
+    await writeFile(probe, "", "utf8");
+    await unlink(probe);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 async function load(): Promise<RegistryEntry[]> {
   try {
@@ -34,7 +52,7 @@ async function load(): Promise<RegistryEntry[]> {
 }
 
 async function save(rows: RegistryEntry[]) {
-  await mkdir(path.dirname(FILE), { recursive: true });
+  await mkdir(DIR, { recursive: true });
   const tmp = `${FILE}.${process.pid}.tmp`;
   await writeFile(tmp, JSON.stringify(rows, null, 1), "utf8");
   await rename(tmp, FILE);

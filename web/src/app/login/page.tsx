@@ -30,8 +30,8 @@ export default async function LoginPage() {
             <div className="banner warn" role="alert">
               <IconLock />
               <span>
-                <strong>Sign-in is not configured.</strong> Set <code>APP_PASSWORD</code> and <code>SESSION_SECRET</code> in <code>web/.env.local</code>, then
-                restart. See <code>.env.example</code>.
+                <strong>Sign-in is not configured.</strong> Set <code>APP_PASSWORD</code> and <code>SESSION_SECRET</code> in <code>web/.env.local</code> (locally)
+                or in the host&apos;s environment variables, then restart or redeploy. See <code>.env.example</code>.
               </span>
             </div>
           )}

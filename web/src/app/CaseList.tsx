@@ -13,7 +13,10 @@ import { IconAlert, IconPlus, IconSearch } from "@/components/Icons";
 const lookup = <T extends Record<string, StatusDef>>(table: T, key: string, fallback: StatusDef): StatusDef => (table as Record<string, StatusDef>)[key] ?? fallback;
 
 /** Searchable, filterable list of cases submitted through this app. Pure client-side; no network. */
-export function CaseList({ rows, disconnected }: { rows: CaseRow[]; disconnected: boolean }) {
+export function CaseList({ rows, disconnected, temporaryHistory = false }: { rows: CaseRow[]; disconnected: boolean; temporaryHistory?: boolean }) {
+  const historyNote = temporaryHistory
+    ? "This deployment keeps case history in temporary server storage, so it can reset at any time. Cases from other environments are not shown here."
+    : null;
   const ids = { q: useId(), sort: useId() };
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<CaseFilter>("ALL");
@@ -43,6 +46,11 @@ export function CaseList({ rows, disconnected }: { rows: CaseRow[]; disconnected
               ? "The n8n connection is not configured, so no live meetings can be submitted yet."
               : "Paste meeting notes with an explicit planning period. ActionReady checks each new commitment against the register and recorded capacity before anything moves forward."}
           </p>
+          {historyNote && (
+            <p className="small muted" style={{ maxWidth: 460 }}>
+              {historyNote}
+            </p>
+          )}
           {!disconnected && (
             <div className="row" style={{ justifyContent: "center", marginTop: 4 }}>
               <Link href="/meetings/new" className="btn primary">
@@ -130,7 +138,9 @@ export function CaseList({ rows, disconnected }: { rows: CaseRow[]; disconnected
             ))}
           </ul>
         )}
-        <p className="card-foot hint">Counts include only cases submitted through this app. Older chat-path cases live in the n8n report.</p>
+        <p className="card-foot hint">
+          Counts include only cases submitted through this app. Older chat-path cases live in the n8n report.{historyNote && " " + historyNote}
+        </p>
       </section>
     </>
   );
