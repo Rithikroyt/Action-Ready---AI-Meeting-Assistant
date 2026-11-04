@@ -82,11 +82,44 @@ describe("submission when cases cannot be recorded", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("DEMO: returns a clear message instead of a server error", async () => {
+  it("DEMO: still works without writable storage — the case reopens from its self-describing ID", async () => {
     process.env.ACTIONREADY_DATA_DIR = unwritableDir();
     const { service } = await load();
     const out = await service.submitMeeting("owner", submission());
-    expect(out).toMatchObject({ kind: "unavailable", message: expect.stringContaining("cannot record cases") });
+    expect(out.kind).toBe("accepted");
+    if (out.kind !== "accepted") return;
+    const view = await service.getJobView("owner", out.job_id);
+    expect(view).toMatchObject({ kind: "ok", view: { mode: "DEMO", operational_readiness: "BLOCKED" } });
+  });
+
+  it("DEMO: a different server instance (empty storage) rebuilds the identical case", async () => {
+    process.env.ACTIONREADY_DATA_DIR = path.join(scratch, "instance-a");
+    const a = await load();
+    const out = await a.service.submitMeeting("owner", submission());
+    if (out.kind !== "accepted") throw new Error("not accepted");
+    const onA = await a.service.getJobView("owner", out.job_id);
+    process.env.ACTIONREADY_DATA_DIR = path.join(scratch, "instance-b"); // nothing recorded here
+    const b = await load();
+    const onB = await b.service.getJobView("owner", out.job_id);
+    expect(onB.kind).toBe("ok");
+    expect(onA.kind === "ok" && onB.kind === "ok" ? onB.view : null).toEqual(onA.kind === "ok" ? onA.view : null);
+  });
+
+  it("LIVE: demo IDs never resolve, and unknown live jobs stay not found", async () => {
+    process.env.ACTIONREADY_DATA_DIR = path.join(scratch, "data");
+    const demo = await load();
+    const out = await demo.service.submitMeeting("owner", submission());
+    if (out.kind !== "accepted") throw new Error("not accepted");
+    Object.assign(process.env, {
+      ACTIONREADY_MODE: "live",
+      ACTIONREADY_DATA_DIR: path.join(scratch, "live-empty"),
+      N8N_WEBHOOK_BASE: "https://example.invalid/webhook",
+      N8N_WEBHOOK_HEADER_NAME: "X-ActionReady-Key",
+      N8N_WEBHOOK_SECRET: "x".repeat(24),
+      N8N_JOB_STATUS_PATH: "abc/actionready/v1/jobs",
+    });
+    const live = await load();
+    expect((await live.service.getJobView("owner", out.job_id)).kind).toBe("not_found");
   });
 
   it("DEMO with writable storage still records and reopens the case", async () => {

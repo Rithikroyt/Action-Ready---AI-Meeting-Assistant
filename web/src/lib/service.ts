@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { isFinal, normalizeJob, type JobView, type Submission } from "./contract";
 import { getConfig } from "./env";
 import { fetchJobFromN8n, submitToN8n } from "./n8n";
-import { buildDemoBody, demoScenarioFor } from "./demo";
+import { buildDemoBody, demoScenarioFor, rebuildDemoBody } from "./demo";
 import { addJob, findByRequest, findJob, listJobs, registryWritable, updateSnapshot, type RegistryEntry } from "./registry";
 
 const NOT_RECORDABLE =
@@ -47,9 +47,10 @@ export async function submitMeeting(owner: string, sub: Submission): Promise<Sub
         kind: "demo_unsupported",
         message: "Demo mode only evaluates the labeled synthetic examples, with their notes and period unchanged. Switch to live mode to analyze your own notes.",
       };
-    if (!(await registryWritable())) return { kind: "unavailable", message: NOT_RECORDABLE };
     const body = buildDemoBody(scenario, sub);
-    await addJob(entry(body.job_id, "DEMO", body));
+    // Demo cases are rebuilt from their self-describing ID, so recording is only for the Overview list:
+    // best-effort, never a reason to fail (serverless storage may be read-only or per-instance).
+    if (await registryWritable()) await addJob(entry(body.job_id, "DEMO", body)).catch(() => undefined);
     return { kind: "accepted", job_id: body.job_id, reused: false };
   }
 
@@ -68,8 +69,16 @@ export type JobLookup =
   | { kind: "unavailable"; message: string; last_known: JobView | null };
 
 export async function getJobView(owner: string, job_id: string): Promise<JobLookup> {
-  const entry = await findJob(owner, job_id);
-  if (!entry) return { kind: "not_found" }; // ownership: only jobs this owner submitted through this app
+  const entry = await findJob(owner, job_id).catch(() => null);
+  if (!entry) {
+    // DEMO only: a synthetic case can be rebuilt from its ID on any server instance. Live jobs still require
+    // a registry entry owned by this account, and demo IDs never resolve in live mode.
+    if (getConfig().mode === "demo") {
+      const body = rebuildDemoBody(job_id);
+      if (body) return { kind: "ok", view: normalizeJob(body, "DEMO") };
+    }
+    return { kind: "not_found" }; // ownership: only jobs this owner submitted through this app
+  }
 
   if (entry.mode === "DEMO") return { kind: "ok", view: normalizeJob(entry.demo_body, "DEMO") };
 

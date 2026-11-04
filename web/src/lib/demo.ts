@@ -1,7 +1,46 @@
-import { randomBytes } from "node:crypto";
 import type { Submission } from "./contract";
+import { JOB_ID_RE } from "./contract";
 import { computeReadiness } from "./readiness";
-import { DEMO_PROJECT_ID, FIXTURE_NOW, ROSTER, findScenarioByNotes, type Scenario } from "./fixtures";
+import { DEMO_PROJECT_ID, DEMO_TIMEZONE, FIXTURE_NOW, ROSTER, SCENARIOS, findScenarioByNotes, type Scenario } from "./fixtures";
+
+// A demo result is fully determined by its synthetic scenario, submission time and timezone, so the job ID encodes
+// exactly those. Any server instance can rebuild the same case from the ID alone — no storage needed (serverless
+// hosts such as Vercel do not share /tmp between instances).
+const b64 = (s: string) => Buffer.from(s, "utf8").toString("base64url");
+const DEMO_ID_RE = /^demo_([a-z][a-z-]*)_([0-9a-z]{6,10})(?:_([A-Za-z0-9_-]+))?$/;
+
+export function demoJobId(scenarioId: string, at: Date, timezone: string): string {
+  const base = `demo_${scenarioId}_${at.getTime().toString(36)}`;
+  const withTz = `${base}_${b64(timezone)}`;
+  // Timezone is display-only metadata; drop it rather than exceed the job-ID length limit.
+  return JOB_ID_RE.test(withTz) ? withTz : base;
+}
+
+const validTz = (tz: string) => {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** Rebuilds a demo case from its self-describing job ID, or null if the ID is not a valid demo ID. */
+export function rebuildDemoBody(job_id: string) {
+  const m = DEMO_ID_RE.exec(job_id);
+  if (!m || !JOB_ID_RE.test(job_id)) return null;
+  const s = SCENARIOS.find((x) => x.id === m[1]);
+  const ms = parseInt(m[2]!, 36);
+  if (!s || !s.period || !Number.isFinite(ms) || ms <= 0 || ms > Date.now() + 300_000) return null;
+  let tz = DEMO_TIMEZONE;
+  if (m[3]) {
+    const decoded = Buffer.from(m[3], "base64url").toString("utf8");
+    if (!validTz(decoded) || b64(decoded) !== m[3]) return null;
+    tz = decoded;
+  }
+  const body = buildDemoBody(s, { request_id: "", notes: s.notes, period_start: s.period.start, period_end: s.period.end, timezone: tz }, new Date(ms));
+  return body.job_id === job_id ? body : null;
+}
 
 // DEMO mode: runs only the labeled synthetic scenarios, entirely inside this app.
 // No n8n call, no model, no tool call. Every result says so.
@@ -25,8 +64,8 @@ function quoteFor(notes: string, task: string, owner: string): string | null {
   return best && score(best) > 0 ? best : null;
 }
 
-export function buildDemoBody(s: Scenario, sub: Submission) {
-  const job_id = "demo_" + randomBytes(9).toString("base64url");
+export function buildDemoBody(s: Scenario, sub: Submission, at: Date = new Date()) {
+  const job_id = demoJobId(s.id, at, sub.timezone);
   const roster = s.roster ?? ROSTER;
   const r = computeReadiness({
     project_id: DEMO_PROJECT_ID,
@@ -41,7 +80,7 @@ export function buildDemoBody(s: Scenario, sub: Submission) {
     tool_calls: [],
     require_tool_evidence: false,
   });
-  const now = new Date().toISOString();
+  const now = at.toISOString();
   return {
     job_id,
     schema_version: "1",
