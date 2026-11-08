@@ -2,6 +2,7 @@
 import type { JobView } from "./contract";
 import { approvalStatus, executionStatus, readinessStatus, reviewStatus } from "./status";
 import { deriveDecision } from "./decision";
+import { coordinate, type RouteId } from "./coordinator";
 
 export interface CaseRow {
   job_id: string;
@@ -18,6 +19,8 @@ export interface CaseRow {
   approval: string;
   /** One-line official reason, or null while processing. */
   reason: string | null;
+  /** Week 4 Coordinator route derived from the official result; null until there is a result. */
+  route: { id: RouteId; role: string; label: string; why: string } | null;
   refresh_error: string | null;
 }
 
@@ -76,8 +79,14 @@ export function toCaseRow(r: {
     readiness: v && final && v.execution_status === "SUCCEEDED" ? readinessStatus(v.operational_readiness).key : "NOT_CHECKED",
     approval: v ? approvalStatus(v).key : "UNKNOWN",
     reason,
+    route: v ? routeSummary(v) : null,
     refresh_error: r.refresh_error,
   };
+}
+
+function routeSummary(v: JobView): CaseRow["route"] {
+  const c = coordinate(v);
+  return { id: c.route.id, role: c.route.role, label: c.route.label, why: c.why[0] ?? c.route.next };
 }
 
 export function matchesFilter(row: CaseRow, f: CaseFilter): boolean {

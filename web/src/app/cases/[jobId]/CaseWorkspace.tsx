@@ -16,6 +16,7 @@ import { DecisionCard } from "@/components/DecisionCard";
 import { IconAlert, IconCopy, IconDatabase, IconHelp, IconLock, IconRefresh } from "@/components/Icons";
 import { WorkloadBar, workloadFormulas } from "@/components/WorkloadBar";
 import { WhatIf } from "@/components/WhatIf";
+import { RoutePanel } from "@/components/RoutePanel";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { APPROVAL, READINESS, REVIEW, type StatusDef } from "@/lib/status";
@@ -136,6 +137,7 @@ export function CaseWorkspace({ jobId, initial }: { jobId: string; initial: Load
         <Processing job={job} pollingActive={pollingActive} polls={polls} onCheck={check} checking={checking} checkedAt={load.checkedAt} now={now} />
       ) : job.execution_status === "FAILED" ? (
         <>
+          <RoutePanel job={job} />
           <DecisionCard decision={deriveDecision(job)} reasons={[]} questions={[]} />
           <div>
             <Link className="btn" href="/meetings/new">
@@ -368,6 +370,8 @@ function Result({ job, jobId }: { job: JobView; jobId: string }) {
           { def: approvalStatus(job) },
         ]}
       />
+
+      <RoutePanel job={job} />
 
       <DecisionCard decision={decision} reasons={reasons} questions={job.clarification_questions} />
 

@@ -1742,3 +1742,196 @@ dialog.modal::backdrop {
     align-items: flex-start;
   }
 }
+
+/* ---------- Week 4: coordinator routing ---------- */
+.route-strip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 18px;
+  border-radius: 18px;
+  background: #fff;
+  border: 1px solid rgba(240, 225, 214, 0.9);
+  box-shadow: var(--shadow-1);
+  animation: rise 420ms var(--ease) both;
+}
+.route-strip.tone-blocked {
+  border-color: var(--blocked-line);
+  background: linear-gradient(90deg, #fff4f5, #fff 60%);
+}
+.route-strip.tone-unknown {
+  border-color: var(--unknown-line);
+  background: linear-gradient(90deg, #fff9ea, #fff 60%);
+}
+.route-strip.tone-ready {
+  border-color: var(--ready-line);
+  background: linear-gradient(90deg, #f5fce6, #fff 60%);
+}
+.route-icon,
+.lane-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  background: var(--lavender-soft);
+  color: var(--accent-ink);
+}
+.tone-blocked .route-icon,
+.tone-blocked .lane-icon {
+  background: var(--blocked-bg);
+  color: var(--blocked);
+}
+.tone-unknown .route-icon,
+.tone-unknown .lane-icon {
+  background: var(--unknown-bg);
+  color: var(--unknown);
+}
+.tone-ready .route-icon,
+.tone-ready .lane-icon {
+  background: var(--ready-bg);
+  color: var(--ready);
+}
+.route-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.route-text strong {
+  font-family: var(--font-display);
+  font-size: 16px;
+}
+.route-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.route-detail h3 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  margin-bottom: 6px;
+}
+.route-not-done {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--lavender-soft);
+  color: var(--accent-ink);
+  font-weight: 560;
+}
+
+.attention .lanes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+  padding: 14px 16px 16px;
+}
+.lane {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  background: #fffcfa;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lane.tone-blocked {
+  border-color: var(--blocked-line);
+}
+.lane.tone-unknown {
+  border-color: var(--unknown-line);
+}
+.lane.tone-ready {
+  border-color: var(--ready-line);
+}
+.lane-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+.lane-head > div {
+  display: flex;
+  flex-direction: column;
+}
+.lane-count {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+}
+.lane ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.lane li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 8px;
+  border-top: 1px solid #f3e7de;
+}
+
+/* drawer: right-side sheet on the native <dialog> */
+dialog.drawer {
+  padding: 0;
+  border: none;
+  margin: 0 0 0 auto;
+  height: 100vh;
+  max-height: 100vh;
+  width: min(480px, 100vw);
+  max-width: 100vw;
+  background: transparent;
+  color: var(--text);
+  overflow: visible;
+}
+dialog.drawer::backdrop {
+  background: rgba(31, 20, 48, 0.4);
+  backdrop-filter: blur(4px);
+  animation: fade-bg 240ms var(--ease) both;
+}
+.drawer-panel {
+  height: 100%;
+  background: #fff;
+  box-shadow: -20px 0 60px -20px rgba(31, 20, 48, 0.5);
+  display: flex;
+  flex-direction: column;
+  animation: drawer-in 340ms var(--ease) both;
+}
+@keyframes drawer-in {
+  from {
+    transform: translateX(40px);
+    opacity: 0;
+  }
+}
+.drawer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px 22px 12px;
+  border-bottom: 1px solid #f6ebe3;
+}
+.drawer-head h2 {
+  font-size: 19px;
+}
+.drawer-body {
+  padding: 18px 22px 28px;
+  overflow-y: auto;
+}
+
+@media (max-width: 760px) {
+  .route-strip {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .route-strip .btn {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { IconPlus, IconSparkle } from "@/components/Icons";
 import { ReadinessDonut } from "@/components/ReadinessDonut";
+import { AttentionQueue } from "@/components/AttentionQueue";
 import { requireSession, OWNER } from "@/lib/session";
 import { overview } from "@/lib/service";
 import { getConfig } from "@/lib/env";
@@ -46,6 +47,7 @@ export default async function OverviewPage() {
         </div>
         <ReadinessDonut counts={counts} />
       </section>
+      {rows.length > 0 && <AttentionQueue rows={rows} />}
       <CaseList rows={rows} disconnected={cfg.mode === "live" && !cfg.n8n} temporaryHistory={REGISTRY_TEMPORARY} />
     </AppShell>
   );
