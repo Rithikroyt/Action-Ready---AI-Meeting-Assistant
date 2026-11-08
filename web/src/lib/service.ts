@@ -107,9 +107,27 @@ export interface OverviewRow {
   refresh_error: string | null;
 }
 
-export async function overview(owner: string, limit = 15): Promise<OverviewRow[]> {
-  const rows = (await listJobs(owner)).slice(0, limit);
-  return Promise.all(
+export async function overview(owner: string, limit = 15, browserDemoIds: string[] = []): Promise<OverviewRow[]> {
+  const listed = await listJobs(owner).catch(() => [] as RegistryEntry[]);
+  // DEMO only: also list this browser's demo cases, rebuilt from their self-describing IDs, because serverless
+  // instances do not share the registry. Never used in live mode.
+  const extra: OverviewRow[] = [];
+  if (getConfig().mode === "demo")
+    for (const id of browserDemoIds) {
+      if (listed.some((r) => r.job_id === id)) continue;
+      const body = rebuildDemoBody(id);
+      if (body)
+        extra.push({
+          job_id: id,
+          mode: "DEMO",
+          submitted_at: body.timestamps.accepted_at,
+          period: body.period,
+          view: normalizeJob(body, "DEMO"),
+          refresh_error: null,
+        });
+    }
+  const rows = listed.slice(0, limit);
+  const fromRegistry = await Promise.all(
     rows.map(async (r): Promise<OverviewRow> => {
       const base = { job_id: r.job_id, mode: r.mode, submitted_at: r.submitted_at, period: r.period };
       const res = await getJobView(owner, r.job_id).catch(() => null);
@@ -118,4 +136,5 @@ export async function overview(owner: string, limit = 15): Promise<OverviewRow[]
       return { ...base, view: r.snapshot, refresh_error: res ? "Job not found on the workflow." : "Could not refresh." };
     }),
   );
+  return [...fromRegistry, ...extra].sort((a, b) => b.submitted_at.localeCompare(a.submitted_at)).slice(0, limit);
 }

@@ -9,6 +9,14 @@ import { DEMO_PROJECT_ID, DEMO_TIMEZONE, FIXTURE_NOW, ROSTER, SCENARIOS, findSce
 const b64 = (s: string) => Buffer.from(s, "utf8").toString("base64url");
 const DEMO_ID_RE = /^demo_([a-z][a-z-]*)_([0-9a-z]{6,10})(?:_([A-Za-z0-9_-]+))?$/;
 
+/** Browser cookie listing this browser's recent demo case IDs, so the Overview works on any server instance. */
+export const DEMO_CASES_COOKIE = "ar_demo_cases";
+const MAX_REMEMBERED = 12;
+export const isDemoJobId = (id: string) => DEMO_ID_RE.test(id) && JOB_ID_RE.test(id);
+/** Valid demo IDs from the cookie value ("." separated; demo IDs never contain "."). */
+export const parseDemoCookie = (raw: string | undefined | null): string[] => [...new Set((raw ?? "").split(".").filter(isDemoJobId))].slice(-MAX_REMEMBERED);
+export const addToDemoCookie = (raw: string | undefined | null, id: string): string => [...parseDemoCookie(raw).filter((x) => x !== id), id].slice(-MAX_REMEMBERED).join(".");
+
 export function demoJobId(scenarioId: string, at: Date, timezone: string): string {
   const base = `demo_${scenarioId}_${at.getTime().toString(36)}`;
   const withTz = `${base}_${b64(timezone)}`;

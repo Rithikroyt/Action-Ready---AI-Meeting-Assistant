@@ -1,13 +1,15 @@
+import type { NextRequest } from "next/server";
 import { submissionSchema } from "@/lib/contract";
 import { guardApi, json } from "@/lib/guard";
 import { OWNER } from "@/lib/session";
 import { submitMeeting } from "@/lib/service";
+import { addToDemoCookie, DEMO_CASES_COOKIE, isDemoJobId } from "@/lib/demo";
 
 export const dynamic = "force-dynamic";
 
 const MAX_BODY_BYTES = 64 * 1024;
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const denied = await guardApi(req);
   if (denied) return denied;
 
@@ -31,8 +33,19 @@ export async function POST(req: Request) {
 
   const out = await submitMeeting(OWNER, parsed.data);
   switch (out.kind) {
-    case "accepted":
-      return json({ job_id: out.job_id, execution_status: "ACCEPTED", reused: out.reused, schema_version: "1" }, out.reused ? 200 : 202);
+    case "accepted": {
+      const res = json({ job_id: out.job_id, execution_status: "ACCEPTED", reused: out.reused, schema_version: "1" }, out.reused ? 200 : 202);
+      // Demo cases are listed from this browser's cookie, so the Overview works on any serverless instance.
+      if (isDemoJobId(out.job_id))
+        res.cookies.set(DEMO_CASES_COOKIE, addToDemoCookie(req.cookies.get(DEMO_CASES_COOKIE)?.value, out.job_id), {
+          httpOnly: true,
+          sameSite: "lax",
+          secure: process.env.NODE_ENV === "production",
+          path: "/",
+          maxAge: 30 * 24 * 3600,
+        });
+      return res;
+    }
     case "conflict":
       return json({ error: { code: "CONFLICT", message: out.message } }, 409);
     case "invalid":

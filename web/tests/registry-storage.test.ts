@@ -132,3 +132,35 @@ describe("submission when cases cannot be recorded", () => {
     expect(view.kind).toBe("ok");
   });
 });
+
+describe("Overview on a serverless instance with empty storage", () => {
+  it("DEMO: lists this browser's demo cases rebuilt from their IDs", async () => {
+    process.env.ACTIONREADY_DATA_DIR = path.join(scratch, "instance-a");
+    const a = await load();
+    const out = await a.service.submitMeeting("owner", submission());
+    if (out.kind !== "accepted") throw new Error("not accepted");
+    process.env.ACTIONREADY_DATA_DIR = path.join(scratch, "instance-b");
+    const b = await load();
+    expect(await b.service.overview("owner")).toEqual([]);
+    const rows = await b.service.overview("owner", 15, [out.job_id]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ job_id: out.job_id, mode: "DEMO", view: { operational_readiness: "BLOCKED" } });
+  });
+
+  it("LIVE: browser-supplied demo IDs are ignored", async () => {
+    process.env.ACTIONREADY_DATA_DIR = path.join(scratch, "data");
+    const demo = await load();
+    const out = await demo.service.submitMeeting("owner", submission());
+    if (out.kind !== "accepted") throw new Error("not accepted");
+    Object.assign(process.env, {
+      ACTIONREADY_MODE: "live",
+      ACTIONREADY_DATA_DIR: path.join(scratch, "live-empty"),
+      N8N_WEBHOOK_BASE: "https://example.invalid/webhook",
+      N8N_WEBHOOK_HEADER_NAME: "X-ActionReady-Key",
+      N8N_WEBHOOK_SECRET: "x".repeat(24),
+      N8N_JOB_STATUS_PATH: "abc/actionready/v1/jobs",
+    });
+    const live = await load();
+    expect(await live.service.overview("owner", 15, [out.job_id])).toEqual([]);
+  });
+});

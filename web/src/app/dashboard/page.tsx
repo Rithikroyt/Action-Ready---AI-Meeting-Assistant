@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { DEMO_CASES_COOKIE, parseDemoCookie } from "@/lib/demo";
 import { AppShell } from "@/components/AppShell";
 import { IconPlus, IconSparkle } from "@/components/Icons";
 import { ReadinessDonut } from "@/components/ReadinessDonut";
@@ -16,7 +18,8 @@ export const metadata = { title: "Overview" };
 export default async function OverviewPage() {
   await requireSession();
   const cfg = getConfig();
-  const rows = (await overview(OWNER)).map(toCaseRow);
+  const browserDemoIds = parseDemoCookie((await cookies()).get(DEMO_CASES_COOKIE)?.value);
+  const rows = (await overview(OWNER, 15, browserDemoIds)).map(toCaseRow);
   const counts = countBy(rows);
   const attention = counts.blocked + counts.unknown;
 
@@ -47,7 +50,7 @@ export default async function OverviewPage() {
         </div>
         <ReadinessDonut counts={counts} />
       </section>
-      {rows.length > 0 && <AttentionQueue rows={rows} />}
+      <AttentionQueue rows={rows} />
       <CaseList rows={rows} disconnected={cfg.mode === "live" && !cfg.n8n} temporaryHistory={REGISTRY_TEMPORARY} />
     </AppShell>
   );

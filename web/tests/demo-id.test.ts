@@ -1,6 +1,6 @@
 // OFFLINE tests: self-describing demo job IDs rebuild exactly the case that was submitted, and nothing else.
 import { describe, expect, it } from "vitest";
-import { buildDemoBody, demoJobId, rebuildDemoBody } from "@/lib/demo";
+import { addToDemoCookie, buildDemoBody, demoJobId, parseDemoCookie, rebuildDemoBody } from "@/lib/demo";
 import { JOB_ID_RE } from "@/lib/contract";
 import { DEMO_TIMEZONE, SCENARIOS } from "@/lib/fixtures";
 
@@ -35,5 +35,27 @@ describe("demo job IDs", () => {
     expect(rebuildDemoBody(`demo_overload_${(Date.now() + 86_400_000).toString(36)}`)).toBeNull(); // future time
     expect(rebuildDemoBody("demo_overload_abc123_" + Buffer.from("Not/AZone").toString("base64url"))).toBeNull();
     expect(rebuildDemoBody("8c0a7199-ec8a-461d-9849-064eda2de1b2")).toBeNull(); // a live job ID
+  });
+});
+
+describe("browser demo-case cookie", () => {
+  const ids = ["overload", "missing-capacity", "within"].map((id) => buildDemoBody(sub(id).s, sub(id).sub, AT).job_id);
+
+  it("keeps valid demo IDs, newest last, without duplicates", () => {
+    let raw = "";
+    for (const id of [...ids, ids[0]!]) raw = addToDemoCookie(raw, id);
+    expect(parseDemoCookie(raw)).toEqual([ids[1], ids[2], ids[0]]);
+  });
+
+  it("drops anything that is not a demo ID (live job IDs, junk, injection attempts)", () => {
+    const raw = ["8c0a7199-ec8a-461d-9849-064eda2de1b2", "<script>", "demo_", ids[0]].join(".");
+    expect(parseDemoCookie(raw)).toEqual([ids[0]]);
+    expect(parseDemoCookie(undefined)).toEqual([]);
+  });
+
+  it("remembers at most 12 cases", () => {
+    let raw = "";
+    for (let n = 0; n < 20; n++) raw = addToDemoCookie(raw, buildDemoBody(sub("overload").s, sub("overload").sub, new Date(AT.getTime() + n * 1000)).job_id);
+    expect(parseDemoCookie(raw)).toHaveLength(12);
   });
 });
