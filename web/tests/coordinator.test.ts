@@ -1,6 +1,6 @@
 // OFFLINE tests: the Week 4 Coordinator routes official results to the next responsible role. No model calls.
 import { describe, expect, it } from "vitest";
-import { coordinate, reasonGroup, type RouteId } from "@/lib/coordinator";
+import { coordinate, reasonGroup, routingFor, type RouteId } from "@/lib/coordinator";
 import { normalizeJob, type ApprovalState, type Issue, type JobView, type Readiness, type ReviewState } from "@/lib/contract";
 import { buildDemoBody } from "@/lib/demo";
 import { DEMO_TIMEZONE, SCENARIOS } from "@/lib/fixtures";
@@ -128,5 +128,40 @@ describe("routing rules", () => {
           if (r.route.id === "APPROVAL") expect([rv, rd]).toEqual(["PASSED", "READY"]);
           expect(r.not_done).toMatch(/no email has been sent/);
         }
+  });
+});
+
+describe("workflow-recorded route (n8n Coordinator) on the website", () => {
+  const liveBody = (routing: unknown) => ({
+    job_id: "8c0a7199-ec8a-461d-9849-064eda2de1b2", execution_status: "SUCCEEDED", case_id: "AR2-900",
+    ai_review: { status: "AI_REVIEWED_NOT_HUMAN_APPROVED", gate: "PASS", score: 5, version: 1 },
+    operational_readiness: { status: "BLOCKED", reasons: [{ severity: "BLOCKED", code: "CAPACITY_OVERLOAD", owner_id: "maya", message: "Maya overload" }] },
+    workload_by_owner: [{ owner_id: "maya", existing_hours: 6, new_hours: 4, projected_hours: 10, capacity_hours: 8, margin_hours: -2 }],
+    routing,
+  });
+
+  it("parses a valid recorded route and prefers it", () => {
+    const v = normalizeJob(liveBody({ route_id: "MANAGER_REVIEW", why: ["Recorded reason"], also: [{ route_id: "DATA_REVIEW", reason: "x" }], codes: ["CAPACITY_OVERLOAD"], not_done: "Nothing sent.", rules_version: "week4-coordinator-v1" }), "LIVE");
+    expect(v.routing).toMatchObject({ route_id: "MANAGER_REVIEW", why: ["Recorded reason"], rules_version: "week4-coordinator-v1" });
+    const r = routingFor(v);
+    expect(r).toMatchObject({ source: "workflow", app_agrees: true, why: ["Recorded reason"], not_done: "Nothing sent." });
+    expect(r.route.role).toBe("Manager");
+  });
+
+  it("drops unknown route IDs and junk instead of inventing a route", () => {
+    expect(normalizeJob(liveBody({ route_id: "SEND_EVERYTHING", why: ["x"] }), "LIVE").routing).toBeNull();
+    expect(normalizeJob(liveBody("MANAGER_REVIEW"), "LIVE").routing).toBeNull();
+    const v = normalizeJob(liveBody({ route_id: "APPROVAL", also: [{ route_id: "BOGUS" }, { route_id: "DATA_REVIEW", reason: "ok" }] }), "LIVE");
+    expect(v.routing?.also).toEqual([{ route_id: "DATA_REVIEW", reason: "ok" }]);
+  });
+
+  it("flags when the app's reference rules disagree with the recorded route", () => {
+    const v = normalizeJob(liveBody({ route_id: "APPROVAL", why: ["recorded"] }), "LIVE"); // BLOCKED result: app says Manager
+    expect(routingFor(v)).toMatchObject({ source: "workflow", app_agrees: false });
+  });
+
+  it("demo results never carry a recorded route; without one the app computes it", () => {
+    expect(normalizeJob({ ...liveBody({ route_id: "APPROVAL" }) }, "DEMO").routing).toBeNull();
+    expect(routingFor(normalizeJob(liveBody(undefined), "LIVE"))).toMatchObject({ source: "app", app_agrees: null });
   });
 });

@@ -2,14 +2,14 @@
 
 import { useMemo, useState } from "react";
 import type { JobView } from "@/lib/contract";
-import { coordinate } from "@/lib/coordinator";
+import { routingFor } from "@/lib/coordinator";
 import { Drawer } from "./Drawer";
 import { RoleIcon } from "./RoleIcon";
 import { IconHelp } from "./Icons";
 
 /** Week 4: the next responsible role for this case, with a "Why this route?" evidence drawer. */
 export function RoutePanel({ job }: { job: JobView }) {
-  const r = useMemo(() => coordinate(job), [job]);
+  const r = useMemo(() => routingFor(job), [job]);
   const [open, setOpen] = useState(false);
   return (
     <section className={`route-strip tone-${r.route.tone}`} aria-labelledby="route-h">
@@ -77,8 +77,17 @@ export function RoutePanel({ job }: { job: JobView }) {
             </section>
           )}
           <p className="hint">
-            Routed by ActionReady&apos;s deterministic Coordinator rules applied to the official {job.mode === "LIVE" ? "workflow" : "synthetic"} result — no model call
-            and no confidence score. The n8n Coordinator node is not deployed yet, so this route is computed by the app, not recorded by the workflow.
+            {r.source === "workflow" ? (
+              <>
+                Recorded by the n8n Coordinator for this version — deterministic rules, no model call and no confidence score.
+                {r.app_agrees === false && " This app's reference rules would route it differently; the workflow's recorded route is shown."}
+              </>
+            ) : (
+              <>
+                Routed by ActionReady&apos;s deterministic Coordinator rules applied to the official {job.mode === "LIVE" ? "workflow" : "synthetic"} result — no model
+                call and no confidence score. This case has no workflow-recorded route, so the app computed it.
+              </>
+            )}
           </p>
         </div>
       </Drawer>

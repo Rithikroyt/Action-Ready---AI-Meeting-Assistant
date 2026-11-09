@@ -2,7 +2,7 @@
 import type { JobView } from "./contract";
 import { approvalStatus, executionStatus, readinessStatus, reviewStatus } from "./status";
 import { deriveDecision } from "./decision";
-import { coordinate, type RouteId } from "./coordinator";
+import { routingFor, type RouteId } from "./coordinator";
 
 export interface CaseRow {
   job_id: string;
@@ -85,7 +85,7 @@ export function toCaseRow(r: {
 }
 
 function routeSummary(v: JobView): CaseRow["route"] {
-  const c = coordinate(v);
+  const c = routingFor(v);
   return { id: c.route.id, role: c.route.role, label: c.route.label, why: c.why[0] ?? c.route.next };
 }
 

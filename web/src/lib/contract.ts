@@ -128,6 +128,37 @@ export interface JobView {
   };
   error: { code: string; message: string } | null;
   provenance_note: string | null;
+  /** Week 4: the route recorded by the n8n Coordinator for this version, when the workflow returned one. */
+  routing: RecordedRouting | null;
+}
+
+export const ROUTE_IDS = ["PROCESSING", "TECHNICAL_REVIEW", "CLARIFICATION", "MANAGER_REVIEW", "DATA_REVIEW", "APPROVAL", "DISPATCH", "REVISION", "COMPLETE", "DEMO_PREVIEW"] as const;
+export interface RecordedRouting {
+  route_id: (typeof ROUTE_IDS)[number];
+  why: string[];
+  not_done: string | null;
+  also: { route_id: (typeof ROUTE_IDS)[number]; reason: string }[];
+  codes: string[];
+  rules_version: string | null;
+}
+
+/** Allowlisted parse of the workflow's `routing` object; anything unrecognised is dropped (never invented). */
+function parseRouting(v: unknown): RecordedRouting | null {
+  if (!v || typeof v !== "object") return null;
+  const r = v as Record<string, unknown>;
+  const isRoute = (x: unknown): x is RecordedRouting["route_id"] => typeof x === "string" && (ROUTE_IDS as readonly string[]).includes(x);
+  if (!isRoute(r.route_id)) return null;
+  const texts = (x: unknown, n: number, len: number) => (Array.isArray(x) ? x.filter((s): s is string => typeof s === "string" && !!s.trim()).slice(0, n).map((s) => s.slice(0, len)) : []);
+  return {
+    route_id: r.route_id,
+    why: texts(r.why, 8, 300),
+    not_done: typeof r.not_done === "string" ? r.not_done.slice(0, 200) : null,
+    also: Array.isArray(r.also)
+      ? r.also.flatMap((a) => (a && typeof a === "object" && isRoute((a as { route_id?: unknown }).route_id) ? [{ route_id: (a as { route_id: RecordedRouting["route_id"] }).route_id, reason: String((a as { reason?: unknown }).reason ?? "").slice(0, 300) }] : [])).slice(0, 4)
+      : [],
+    codes: texts(r.codes, 20, 60),
+    rules_version: typeof r.rules_version === "string" ? r.rules_version.slice(0, 40) : null,
+  };
 }
 
 // ---------- tolerant primitives ----------
@@ -515,6 +546,8 @@ export function normalizeJob(input: unknown, mode: DataMode, now = Date.now()): 
     timestamps,
     error,
     provenance_note: str(400).parse(o.provenance_note),
+    // Only a live workflow result can carry a recorded route; demo results never do.
+    routing: mode === "LIVE" ? parseRouting(o.routing) : null,
   };
 }
 

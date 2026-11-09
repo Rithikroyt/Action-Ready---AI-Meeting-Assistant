@@ -238,3 +238,27 @@ export function coordinate(v: JobView): Routing {
 /** Routes that need a person to act, in queue order. */
 export const ATTENTION_ORDER: RouteId[] = ["APPROVAL", "MANAGER_REVIEW", "DATA_REVIEW", "CLARIFICATION", "TECHNICAL_REVIEW", "REVISION", "DISPATCH"];
 export const needsAttention = (id: RouteId) => ATTENTION_ORDER.includes(id);
+
+export interface SourcedRouting extends Routing {
+  /** "workflow": recorded by the n8n Coordinator for this version. "app": computed here from the official result. */
+  source: "workflow" | "app";
+  /** When the workflow recorded a route, whether these app rules reach the same route (a parity check). */
+  app_agrees: boolean | null;
+}
+
+/** The route to display: the workflow-recorded one when present, otherwise the app's own computation. */
+export function routingFor(v: JobView): SourcedRouting {
+  const app = coordinate(v);
+  const rec = v.routing;
+  if (!rec) return { ...app, source: "app", app_agrees: null };
+  return {
+    route: ROUTES[rec.route_id],
+    why: rec.why.length ? rec.why : app.why,
+    evidence: app.evidence,
+    also: rec.also.map((a) => ({ route: ROUTES[a.route_id], reason: a.reason })),
+    not_done: rec.not_done ?? app.not_done,
+    codes: rec.codes,
+    source: "workflow",
+    app_agrees: app.route.id === rec.route_id,
+  };
+}
