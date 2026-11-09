@@ -2,9 +2,11 @@ import type { NextRequest } from "next/server";
 import { submissionSchema } from "@/lib/contract";
 import { apiSession, guardApi, json } from "@/lib/guard";
 import { submitMeeting } from "@/lib/service";
+import { getConfig } from "@/lib/env";
 import { addToDemoCookie, DEMO_CASES_COOKIE, isDemoJobId } from "@/lib/demo";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -30,7 +32,11 @@ export async function POST(req: NextRequest) {
     return json({ error: { code: "VALIDATION", message: "Please fix the highlighted fields.", fields } }, 422);
   }
 
-  const out = await submitMeeting((await apiSession()).sub, parsed.data);
+  const session = await apiSession();
+  // A live analysis is a model run on the organizer's accounts: only approvers may start one.
+  if (getConfig().mode === "live" && !session.canSend)
+    return json({ error: { code: "NOT_AN_APPROVER", message: "Only approvers named by the organizer can start a live analysis. You can still open and review existing cases." } }, 403);
+  const out = await submitMeeting(session.sub, parsed.data);
   switch (out.kind) {
     case "accepted": {
       const res = json({ job_id: out.job_id, execution_status: "ACCEPTED", reused: out.reused, schema_version: "1" }, out.reused ? 200 : 202);

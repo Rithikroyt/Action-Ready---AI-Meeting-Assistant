@@ -2,12 +2,9 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { isFinal, normalizeJob, type JobView, type Submission } from "./contract";
 import { getConfig } from "./env";
-import { dispatchToN8n, fetchJobFromN8n, publishTrackerToN8n, submitToN8n, type DispatchOutcome, type TrackerOutcome } from "./n8n";
-import { buildDemoBody, demoScenarioFor, rebuildDemoBody } from "./demo";
+import { dispatchToN8n, fetchCaseListFromN8n, fetchJobFromN8n, publishTrackerToN8n, submitToN8n, type DispatchOutcome, type TrackerOutcome } from "./n8n";
+import { buildDemoBody, demoScenarioFor, isDemoJobId, rebuildDemoBody } from "./demo";
 import { addJob, findByRequest, findJob, listJobs, registryWritable, updateSnapshot, type RegistryEntry } from "./registry";
-
-const NOT_RECORDABLE =
-  "This server cannot record cases (its job storage is not writable), so the meeting was not sent. Set ACTIONREADY_DATA_DIR to a writable folder.";
 
 export const fingerprint = (s: Submission) =>
   createHash("sha256").update(JSON.stringify([s.notes, s.period_start, s.period_end, s.timezone])).digest("hex");
@@ -55,11 +52,11 @@ export async function submitMeeting(owner: string, sub: Submission): Promise<Sub
   }
 
   if (!cfg.n8n) return { kind: "unavailable", message: "Live mode is not configured on the server: " + cfg.problems.join(", ") };
-  // Check first: an accepted run that cannot be recorded would be invisible here (and is a paid model run).
-  if (!(await registryWritable())) return { kind: "unavailable", message: NOT_RECORDABLE };
+  // Live cases are durable in n8n (the Overview reads the n8n case list), so a read-only or temporary disk no
+  // longer hides a run. The local registry is only a cache plus same-instance double-submit protection.
   const out = await submitToN8n(cfg.n8n, sub);
   if (out.kind !== "accepted") return out;
-  await addJob(entry(out.job_id, "LIVE"));
+  if (await registryWritable()) await addJob(entry(out.job_id, "LIVE")).catch(() => undefined);
   return { kind: "accepted", job_id: out.job_id, reused: false };
 }
 
@@ -70,6 +67,9 @@ export type JobLookup =
 
 export async function getJobView(owner: string, job_id: string): Promise<JobLookup> {
   const entry = await findJob(owner, job_id).catch(() => null);
+  // LIVE: one shared project workspace. Any signed-in member may open any case of this project; n8n scopes the
+  // status endpoint to the project, so a job from elsewhere is simply not found.
+  if (!entry && getConfig().mode === "live") return isDemoJobId(job_id) ? { kind: "not_found" } : liveView(job_id, null);
   if (!entry) {
     // DEMO only: a synthetic case can be rebuilt from its ID on any server instance. Live jobs still require
     // a registry entry owned by this account, and demo IDs never resolve in live mode.
@@ -84,17 +84,20 @@ export async function getJobView(owner: string, job_id: string): Promise<JobLook
 
   // A final result does not change; skip the network round-trip.
   if (entry.snapshot && isFinal(entry.snapshot.execution_status)) return { kind: "ok", view: entry.snapshot };
+  return liveView(job_id, entry);
+}
 
+async function liveView(job_id: string, entry: RegistryEntry | null): Promise<JobLookup> {
   const cfg = getConfig();
-  if (!cfg.n8n) return { kind: "unavailable", message: "Live mode is not configured on the server.", last_known: entry.snapshot };
+  const last = entry?.snapshot ?? null;
+  if (!cfg.n8n) return { kind: "unavailable", message: "Live mode is not configured on the server.", last_known: last };
   const out = await fetchJobFromN8n(cfg.n8n, job_id);
   if (out.kind === "not_found") return { kind: "not_found" };
-  if (out.kind === "unavailable") return { kind: "unavailable", message: out.message, last_known: entry.snapshot };
+  if (out.kind === "unavailable") return { kind: "unavailable", message: out.message, last_known: last };
   const view = normalizeJob(out.body, "LIVE");
-  if (view.job_id && view.job_id !== job_id)
-    return { kind: "unavailable", message: "The workflow returned a different job than requested.", last_known: entry.snapshot };
+  if (view.job_id && view.job_id !== job_id) return { kind: "unavailable", message: "The workflow returned a different job than requested.", last_known: last };
   view.job_id = job_id;
-  await updateSnapshot(job_id, view);
+  if (entry) await updateSnapshot(job_id, view).catch(() => undefined);
   return { kind: "ok", view };
 }
 
@@ -108,6 +111,24 @@ export interface OverviewRow {
 }
 
 export async function overview(owner: string, limit = 15, browserDemoIds: string[] = []): Promise<OverviewRow[]> {
+  const cfg = getConfig();
+  // LIVE: the durable case list comes from n8n in one request (shared project workspace).
+  if (cfg.mode === "live" && cfg.n8n) {
+    const list = await fetchCaseListFromN8n(cfg.n8n);
+    if (list.kind === "ok")
+      return list.jobs.slice(0, limit).map((j) => {
+        const view = normalizeJob(j, "LIVE");
+        const p = view.period;
+        return {
+          job_id: view.job_id,
+          mode: "LIVE" as const,
+          submitted_at: view.timestamps.accepted_at ?? "",
+          period: p ? { start: p.start, end: p.end, timezone: p.timezone ?? "" } : { start: "", end: "", timezone: "" },
+          view,
+          refresh_error: null,
+        };
+      });
+  }
   const listed = await listJobs(owner).catch(() => [] as RegistryEntry[]);
   // DEMO only: also list this browser's demo cases, rebuilt from their self-describing IDs, because serverless
   // instances do not share the registry. Never used in live mode.
@@ -165,10 +186,10 @@ export async function requestDispatch(owner: string, job_id: string, input: { re
   if (!recipients.length) return { kind: "invalid", message: "Add at least one recipient." };
   if (recipients.length > 10) return { kind: "invalid", message: "At most 10 recipients per message." };
   if (!recipients.every(validRecipient)) return { kind: "invalid", message: "Each recipient must be a single plain email address." };
-  const entry = await findJob(owner, job_id).catch(() => null);
-  if (!entry || entry.mode !== "LIVE") return { kind: "not_found" as const, message: "No live case with this ID for this account." };
+  // Shared project workspace: the case only has to exist in n8n (project-scoped); the fresh read below is the check.
   const fresh = await fetchJobFromN8n(cfg.n8n, job_id, fetchImpl);
-  if (fresh.kind !== "ok") return { kind: "unavailable", message: fresh.kind === "not_found" ? "The workflow has no record of this job." : fresh.message };
+  if (fresh.kind === "not_found") return { kind: "not_found", message: "The workflow has no live case with this ID." };
+  if (fresh.kind !== "ok") return { kind: "unavailable", message: fresh.message };
   const raw = fresh.body as { draft?: { subject?: unknown; body?: unknown }; employee_drafts?: unknown };
   const view = normalizeJob(fresh.body, "LIVE");
   if (view.version !== input.version) return { kind: "stale", message: `This case is now at version ${view.version ?? "unknown"}. Reload and review the current version.` };
@@ -197,7 +218,6 @@ export async function requestDispatch(owner: string, job_id: string, input: { re
 export async function syncTracker(owner: string, job_id: string, version: number, fetchImpl: typeof fetch = fetch): Promise<{ kind: "ok"; tracker: TrackerOutcome } | { kind: "not_found" | "unavailable"; message: string }> {
   const cfg = getConfig();
   if (cfg.mode !== "live" || !cfg.n8n) return { kind: "unavailable", message: "The task tracker is only available for live workflow cases." };
-  const entry = await findJob(owner, job_id).catch(() => null);
-  if (!entry || entry.mode !== "LIVE") return { kind: "not_found", message: "No live case with this ID for this account." };
+  // n8n re-checks the case, version, review, readiness and the sent approval before writing anything.
   return { kind: "ok", tracker: await publishTrackerToN8n(cfg.n8n, { job_id, version }, fetchImpl) };
 }

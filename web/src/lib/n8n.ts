@@ -200,3 +200,29 @@ export async function publishTrackerToN8n(t: N8nTarget, payload: { job_id: strin
     rows_updated: n(b?.rows_updated),
   };
 }
+
+// ---------- Week 4 Stage B: durable case list ----------
+export type CaseListOutcome = { kind: "ok"; jobs: Record<string, unknown>[] } | { kind: "unavailable"; message: string };
+
+/** Read the project's recent cases from n8n (one execution), so case history does not depend on this host's disk. */
+export async function fetchCaseListFromN8n(t: N8nTarget, fetchImpl: typeof fetch = fetch): Promise<CaseListOutcome> {
+  let res: Response;
+  try {
+    res = await fetchImpl(`${t.base}/actionready/v1/cases`, {
+      method: "GET",
+      headers: { Accept: "application/json", [t.headerName]: t.secret },
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(STATUS_TIMEOUT_MS),
+    });
+  } catch {
+    return { kind: "unavailable", message: "The case list endpoint did not respond." };
+  }
+  if (!res.ok) return { kind: "unavailable", message: `The case list endpoint returned HTTP ${res.status}.` };
+  const b = (await res.json().catch(() => null)) as { jobs?: unknown } | null;
+  if (!b || !Array.isArray(b.jobs)) return { kind: "unavailable", message: "The case list endpoint returned an unexpected body." };
+  return {
+    kind: "ok",
+    jobs: b.jobs.filter((j): j is Record<string, unknown> => !!j && typeof j === "object" && typeof (j as { job_id?: unknown }).job_id === "string").slice(0, 50),
+  };
+}

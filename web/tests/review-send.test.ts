@@ -81,11 +81,15 @@ describe("requestDispatch refuses before calling n8n", () => {
     expect((await service.requestDispatch("owner", JOB, input, m.fn)).kind).toBe(kind);
     expect(m.calls).toHaveLength(0);
   });
-  it("a job this account never submitted is not found", async () => {
+  it("a job the workflow does not know (other project, or invented) is not found, and nothing is POSTed", async () => {
     const { service } = await liveWithJob();
-    const m = n8n({ status: 200 });
-    expect((await service.requestDispatch("owner", "11111111-1111-4111-8111-111111111111", req(), m.fn)).kind).toBe("not_found");
-    expect(m.calls).toHaveLength(0);
+    const calls: string[] = [];
+    const fn = (async (url: string | URL, init?: RequestInit) => {
+      calls.push((init?.method ?? "GET") + " " + String(url));
+      return new Response(JSON.stringify({ error: { code: "JOB_NOT_FOUND" } }), { status: 404 });
+    }) as unknown as typeof fetch;
+    expect((await service.requestDispatch("owner", "11111111-1111-4111-8111-111111111111", req(), fn)).kind).toBe("not_found");
+    expect(calls.every((c) => c.startsWith("GET "))).toBe(true);
   });
   it("an outdated reviewed version is refused after a fresh status read, with no POST", async () => {
     const { service } = await liveWithJob();
@@ -187,11 +191,31 @@ describe("task tracker follows a SENT dispatch only", () => {
     expect(m.calls.some((c) => c.url.endsWith("/tracker/publish"))).toBe(false);
     expect(out).toMatchObject({ tracker: null });
   });
-  it("Sync tracker works only for this account's live case and never sends email", async () => {
+  it("Sync tracker only calls the tracker endpoint (never the AI, never email)", async () => {
     const { service } = await liveWithJob();
     const m = n8n({ status: 200 });
     expect((await service.syncTracker("owner", JOB, 1, m.fn)).kind).toBe("ok");
     expect(m.calls.map((c) => c.url.split("/").slice(-2).join("/"))).toEqual(["tracker/publish"]);
-    expect((await service.syncTracker("someone-else", JOB, 1, m.fn)).kind).toBe("not_found");
+    // Shared project workspace: n8n (not this app's per-instance cache) decides what may be published.
+    expect((await service.syncTracker("another-member", JOB, 1, m.fn)).kind).toBe("ok");
+  });
+});
+
+describe("Stage B: live Overview reads the durable n8n case list", () => {
+  it("one request lists the project's cases with their route and readiness, independent of this host's disk", async () => {
+    Object.assign(process.env, LIVE_ENV, { ACTIONREADY_DATA_DIR: path.join(scratch, "empty") });
+    const { service } = await load();
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", async (url: string | URL) => {
+      calls.push(String(url));
+      return new Response(JSON.stringify({ jobs: [{ ...statusBody(), timestamps: { accepted_at: "2026-11-09T16:20:00.000Z" }, period: { start: "2026-11-02", end: "2026-11-06" } }] }), { status: 200 });
+    });
+    const rows = await service.overview("any-member", 15);
+    vi.unstubAllGlobals();
+    expect(calls).toEqual(["https://example.invalid/webhook/actionready/v1/cases"]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ job_id: JOB, mode: "LIVE", submitted_at: "2026-11-09T16:20:00.000Z" });
+    expect(rows[0]!.view?.operational_readiness).toBe("READY");
+    expect(rows[0]!.view?.routing?.route_id).toBe("APPROVAL");
   });
 });

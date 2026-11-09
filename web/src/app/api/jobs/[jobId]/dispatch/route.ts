@@ -4,6 +4,8 @@ import { apiSession, guardApi, json } from "@/lib/guard";
 import { requestDispatch } from "@/lib/service";
 
 export const dynamic = "force-dynamic";
+// Gmail send plus the tracker publication that follows a SENT result.
+export const maxDuration = 60;
 
 // Review & Send: the browser supplies only recipients, the version it reviewed, which draft (team summary or one
 // employee), and explicit confirmation.

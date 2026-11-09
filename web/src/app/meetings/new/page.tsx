@@ -8,8 +8,9 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "New meeting" };
 
 export default async function NewMeetingPage({ searchParams }: { searchParams: Promise<{ example?: string }> }) {
-  await requireSession();
+  const session = await requireSession();
   const cfg = getConfig();
+  const liveNotApprover = cfg.mode === "live" && !session.canSend;
   const { example } = await searchParams;
   const examples: ExampleOption[] = SCENARIOS.filter((s) => s.loadable && s.period).map((s) => ({
     id: s.id,
@@ -28,6 +29,14 @@ export default async function NewMeetingPage({ searchParams }: { searchParams: P
           <p className="sub">Paste the complete notes. Owners, deadlines and estimates are checked against recorded commitments for the period you set.</p>
         </div>
       </div>
+      {liveNotApprover && (
+        <div className="banner warn" role="status" style={{ marginBottom: 16 }}>
+          <span>
+            <strong>Only approvers can start a live analysis.</strong> Each analysis runs the AI on the organizer&apos;s accounts. Ask the organizer to add your
+            Google account to the approver list, or open an existing case from the Overview.
+          </span>
+        </div>
+      )}
       <NewMeetingForm
         examples={examples}
         initialExample={examples.find((e) => e.id === example)?.id ?? null}

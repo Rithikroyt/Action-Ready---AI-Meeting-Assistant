@@ -4,6 +4,7 @@ import { apiSession, guardApi, json } from "@/lib/guard";
 import { syncTracker } from "@/lib/service";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const bodySchema = z.object({ version: z.number().int().min(1).max(20) }).strict();
 

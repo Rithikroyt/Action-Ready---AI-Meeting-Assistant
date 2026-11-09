@@ -4,7 +4,7 @@
 - The n8n workflow is **`KTQmpWghSB2jid1T`** ("ActionReady - Week 2 Yellowdig FINAL"). Every week's functionality lives on this canvas.
 - Never create replacement workflows, weekly clones, sub-workflows, or Execute-Workflow / Call-Workflow tools. Never import an export as a new workflow.
 - `cisiwLtNtjuegt6m` has the same name but is a **different, duplicate workflow**. Do not edit it. It is reference only, because it contains the `Gmail - Request Approval` node the target lacks.
-- Before any live write: re-fetch the workflow and compare `versionId` with the last audited value (last audited and published: `49d1b3a2-0487-478c-b8d7-2b88f942cee5`, 2026-11-09, sending ON, tracker live). Stop on drift.
+- Before any live write: re-fetch the workflow and compare `versionId` with the last audited value (last audited and published: `c2e14308-be9c-404e-8875-03f09c032972`, 2026-11-09, sending ON, tracker + case list live). Stop on drift.
 - Live writes, table seeding, publishing, paid model runs, and Gmail actions need explicit owner authorization each time.
 
 ## Safety invariants

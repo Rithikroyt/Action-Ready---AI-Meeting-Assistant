@@ -65,7 +65,7 @@ describe("registry location", () => {
 });
 
 describe("submission when cases cannot be recorded", () => {
-  it("LIVE: nothing is sent to n8n, so no untracked run starts", async () => {
+  it("LIVE: a read-only disk no longer blocks a run, because live cases are durable in n8n", async () => {
     Object.assign(process.env, {
       ACTIONREADY_DATA_DIR: unwritableDir(),
       ACTIONREADY_MODE: "live",
@@ -74,12 +74,12 @@ describe("submission when cases cannot be recorded", () => {
       N8N_WEBHOOK_SECRET: "x".repeat(24),
       N8N_JOB_STATUS_PATH: "abc/actionready/v1/jobs",
     });
-    const fetchSpy = vi.fn();
+    const fetchSpy = vi.fn(async () => new Response("{}", { status: 503 }));
     vi.stubGlobal("fetch", fetchSpy);
     const { service } = await load();
-    const out = await service.submitMeeting("owner", submission());
-    expect(out.kind).toBe("unavailable");
-    expect(fetchSpy).not.toHaveBeenCalled();
+    await service.submitMeeting("owner", submission());
+    // The submission goes to n8n (which records the case); the unwritable local cache is not a reason to refuse.
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
   it("DEMO: still works without writable storage — the case reopens from its self-describing ID", async () => {
