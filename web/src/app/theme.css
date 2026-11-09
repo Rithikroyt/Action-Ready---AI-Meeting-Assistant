@@ -2170,3 +2170,84 @@ dialog.drawer::backdrop {
     display: none;
   }
 }
+
+/* ---------- Week 4: Team page ---------- */
+.team-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.team-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.team-list > li {
+  padding: 14px 18px;
+  border-top: 1px solid var(--border);
+}
+.team-list > li.inactive {
+  opacity: 0.55;
+}
+.team-person {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.team-person-text {
+  display: grid;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+.team-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.team-name {
+  font-size: 12px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--lavender-soft);
+  color: var(--accent-ink);
+}
+.team-cap {
+  list-style: none;
+  margin: 10px 0 0 44px;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.team-cap li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 13.5px;
+}
+.team-cap li strong {
+  margin-left: auto;
+}
+.team-stale {
+  font-size: 11.5px;
+  font-weight: 650;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--unknown-bg);
+  color: var(--unknown);
+}
+.team-none {
+  margin: 8px 0 0 44px;
+}
+.team-hours {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin: 0;
+}
+@media (max-width: 900px) {
+  .team-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

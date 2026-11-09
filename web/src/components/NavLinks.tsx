@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconGrid, IconLogo, IconPlus } from "./Icons";
+import { IconGrid, IconLogo, IconPlus, IconUsers } from "./Icons";
 
 const LINKS = [
   { href: "/dashboard", label: "Overview", icon: IconGrid, match: (p: string) => p.startsWith("/dashboard") || p.startsWith("/cases") },
   { href: "/meetings/new", label: "New meeting", icon: IconPlus, match: (p: string) => p.startsWith("/meetings/new") },
+  { href: "/team", label: "Team", icon: IconUsers, match: (p: string) => p.startsWith("/team") },
   { href: "/", label: "Home", icon: IconLogo, match: (p: string) => p === "/" },
 ];
 
