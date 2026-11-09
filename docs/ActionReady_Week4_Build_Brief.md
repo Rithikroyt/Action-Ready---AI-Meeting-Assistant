@@ -145,7 +145,7 @@ Use GPI (granti-rouge.vercel.app) as a reference for narrative hierarchy and evi
 |---|---|
 | A | **Done and live.** The n8n Coordinator is published, and the website queue and route panel are deployed. |
 | D | **Built and published, with sending switched off.** n8n version `34a01708` (published 2026-11-09) adds one fixed-template draft per employee (`employee_drafts` in the status response) and lets the approver type any recipient. It also caps sends at 25 recipients per UTC day. The website's Review & Send page lists every employee's draft plus the team summary, each with its own recipients and approval. |
-| C | **Blocked.** It needs a Google Sheets OAuth2 credential in n8n, which only the owner can create. |
+| C | **Done and live** (n8n `49d1b3a2`, 2026-11-09). `POST actionready/v1/tracker/publish` publishes only tasks approved by a SENT dispatch, one tab per meeting ("<date> · <meeting>"), with a Status dropdown and warning-only protection. Rows are matched by Task ID and written RAW. Status and Update note are never overwritten. Every write is read back and verified. The website calls it automatically after a SENT dispatch and offers "Sync task tracker". Reconciliation of employee status edits back into ActionReady is not built yet. |
 | B, E | Not started. B needs a Google OAuth client for sign-in, created by the owner. |
 
 **Per-employee drafts:**
@@ -153,7 +153,11 @@ Use GPI (granti-rouge.vercel.app) as a reference for narrative hierarchy and evi
 - **Server-side check.** The authorizer rebuilds the named employee's draft from the stored reviewed version and refuses any difference (`CONTENT_CHANGED`, `EMPLOYEE_NOT_IN_DRAFT`).
 - **Parity is tested.** `web/src/lib/employeeDrafts.ts` is the TypeScript port, and `web/tests/employee-drafts.test.ts` enforces that it matches.
 
-**Recorded LIVE checks (2026-11-09, no model run, nothing sent):**
+**Recorded LIVE checks (2026-11-09):**
+- First real send: AR2-1062 v1, Maya's draft to the owner's inbox. Gmail accepted it (message ID recorded in `AR_Dispatches`), and the owner confirmed it arrived.
+- Tracker: the first publish created tab "2026-11-09 · Project Atlas weekly planning" with AR2-1062-A1 and verified it on read-back. A second publish updated the same row (0 added, 1 updated). The BLOCKED case AR2-821 was refused with `NOT_APPROVABLE`.
+
+**Earlier LIVE checks (no model run, nothing sent):**
 - The status endpoint returned `employee_drafts` for AR2-821, AR2-837 and AR2-848.
 - A dispatch request for the BLOCKED case AR2-821 was refused with `NOT_READY` before any claim was recorded.
 

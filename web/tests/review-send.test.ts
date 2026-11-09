@@ -44,6 +44,7 @@ function n8n(dispatch: { status: number; body?: unknown } | "throw", status = st
     const method = init?.method ?? "GET";
     calls.push({ method, url: String(url), body: init?.body ? JSON.parse(String(init.body)) : undefined });
     if (method === "GET") return new Response(JSON.stringify(status), { status: 200 });
+    if (String(url).endsWith("/tracker/publish")) return new Response(JSON.stringify({ tracker_status: "PUBLISHED", tab: "2026-11-09 · Atlas", rows_added: 1, rows_updated: 0, sheet_url: "https://docs.google.com/spreadsheets/d/abc/edit#gid=5" }), { status: 200 });
     if (dispatch === "throw") throw new Error("socket hang up");
     return new Response(JSON.stringify(dispatch.body ?? {}), { status: dispatch.status });
   });
@@ -100,7 +101,7 @@ describe("requestDispatch sends the exact reviewed draft once", () => {
     const m = n8n({ status: 200, body: { dispatch_status: "SENT", gmail_message_id: "18c0ffee", note: "Gmail accepted the message. Delivery and reading are not confirmed." } });
     const out = await service.requestDispatch("owner", JOB, req({ recipients: ["Maya@ASU.edu", " dev@asu.edu", "maya@asu.edu"] }), m.fn);
     expect(out).toMatchObject({ kind: "outcome", outcome: { state: "SENT", gmail_message_id: "18c0ffee" } });
-    const post = m.calls.find((c) => c.method === "POST")!;
+    const post = m.calls.find((c) => c.method === "POST" && c.url.endsWith("/dispatch"))!;
     expect(post.url).toBe("https://example.invalid/webhook/actionready/v1/dispatch");
     const b = post.body as { subject: string; body: string; recipients: string[]; dispatch_key: string; confirm: boolean };
     expect(b.subject).toBe(statusBody().draft.subject);
@@ -108,7 +109,7 @@ describe("requestDispatch sends the exact reviewed draft once", () => {
     expect(b.recipients).toEqual(["dev@asu.edu", "maya@asu.edu"]);
     expect(b.confirm).toBe(true);
     expect(b.dispatch_key).toBe(service.dispatchKey(JOB, 1, ["maya@asu.edu", "dev@asu.edu"], b.subject, b.body));
-    expect(m.calls.filter((c) => c.method === "POST")).toHaveLength(1);
+    expect(m.calls.filter((c) => c.method === "POST" && c.url.endsWith("/dispatch"))).toHaveLength(1);
   });
   it("the key ignores recipient order/case but changes with recipients, version or text", async () => {
     const { service } = await load();
@@ -124,7 +125,7 @@ describe("per-employee drafts", () => {
     const { service } = await liveWithJob();
     const m = n8n({ status: 200, body: { dispatch_status: "SEND_DISABLED" } });
     await service.requestDispatch("owner", JOB, req({ employee: "maya chen", recipients: ["maya@example.org"] }), m.fn);
-    const b = m.calls.find((c) => c.method === "POST")!.body as { employee: string; subject: string; body: string };
+    const b = m.calls.find((c) => c.method === "POST" && c.url.endsWith("/dispatch"))!.body as { employee: string; subject: string; body: string };
     expect(b).toMatchObject({ employee: "maya chen", subject: "Your action items: Atlas", body: statusBody().employee_drafts[0]!.body });
   });
   it("an employee with no reviewed items is refused before any POST", async () => {
@@ -137,7 +138,7 @@ describe("per-employee drafts", () => {
     const { service } = await liveWithJob();
     const m = n8n({ status: 200, body: { dispatch_status: "SEND_DISABLED" } });
     await service.requestDispatch("owner", JOB, req({ employee: null }), m.fn);
-    expect((m.calls.find((c) => c.method === "POST")!.body as { employee: unknown; subject: string }).employee).toBeNull();
+    expect((m.calls.find((c) => c.method === "POST" && c.url.endsWith("/dispatch"))!.body as { employee: unknown; subject: string }).employee).toBeNull();
   });
 });
 
@@ -160,6 +161,37 @@ describe("dispatch outcomes are reported honestly", () => {
     const m = n8n("throw");
     const out = await service.requestDispatch("owner", JOB, req(), m.fn);
     expect(out).toMatchObject({ kind: "outcome", outcome: { state: "UNCERTAIN" } });
-    expect(m.calls.filter((c) => c.method === "POST")).toHaveLength(1);
+    expect(m.calls.filter((c) => c.method === "POST" && c.url.endsWith("/dispatch"))).toHaveLength(1);
+  });
+});
+
+describe("task tracker follows a SENT dispatch only", () => {
+  it("after Gmail accepts, the tracker is published once for this job and version, and reported separately", async () => {
+    const { service } = await liveWithJob();
+    const m = n8n({ status: 200, body: { dispatch_status: "SENT", gmail_message_id: "x1" } });
+    const out = await service.requestDispatch("owner", JOB, req(), m.fn);
+    const t = m.calls.filter((c) => c.url.endsWith("/tracker/publish"));
+    expect(t).toHaveLength(1);
+    expect(t[0]!.body).toEqual({ job_id: JOB, version: 1 });
+    expect(out).toMatchObject({ kind: "outcome", outcome: { state: "SENT" }, tracker: { state: "PUBLISHED", rows_added: 1, sheet_url: "https://docs.google.com/spreadsheets/d/abc/edit#gid=5" } });
+  });
+  it.each([
+    [{ status: 403, body: { dispatch_status: "SEND_DISABLED" } }],
+    [{ status: 409, body: { dispatch_status: "REFUSED" } }],
+    [{ status: 502, body: { dispatch_status: "FAILED" } }],
+    [{ status: 504, body: { dispatch_status: "UNCERTAIN" } }],
+  ])("is never touched when the send was not accepted %#", async (resp) => {
+    const { service } = await liveWithJob();
+    const m = n8n(resp);
+    const out = await service.requestDispatch("owner", JOB, req(), m.fn);
+    expect(m.calls.some((c) => c.url.endsWith("/tracker/publish"))).toBe(false);
+    expect(out).toMatchObject({ tracker: null });
+  });
+  it("Sync tracker works only for this account's live case and never sends email", async () => {
+    const { service } = await liveWithJob();
+    const m = n8n({ status: 200 });
+    expect((await service.syncTracker("owner", JOB, 1, m.fn)).kind).toBe("ok");
+    expect(m.calls.map((c) => c.url.split("/").slice(-2).join("/"))).toEqual(["tracker/publish"]);
+    expect((await service.syncTracker("someone-else", JOB, 1, m.fn)).kind).toBe("not_found");
   });
 });

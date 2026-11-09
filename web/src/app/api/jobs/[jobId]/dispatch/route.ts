@@ -39,7 +39,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ jobId: string 
   const res = await requestDispatch(session.sub, jobId, parsed.data);
   switch (res.kind) {
     case "outcome":
-      return json({ dispatch: res.outcome });
+      return json({ dispatch: res.outcome, tracker: res.tracker });
     case "not_found":
       return json({ error: { code: "NOT_FOUND", message: res.message } }, 404);
     case "stale":

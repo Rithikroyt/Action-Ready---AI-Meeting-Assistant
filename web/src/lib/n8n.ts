@@ -154,3 +154,49 @@ function outcomeFrom(http: number, b: { dispatch_status?: unknown; error?: { cod
     replay: b?.replay === true,
   };
 }
+
+// ---------- Week 4: task tracker (Google Sheets) ----------
+export type TrackerState = "PUBLISHED" | "UNVERIFIED" | "FAILED" | "REFUSED" | "UNKNOWN";
+export interface TrackerOutcome {
+  state: TrackerState;
+  code: string | null;
+  message: string;
+  tab: string | null;
+  sheet_url: string | null;
+  rows_added: number | null;
+  rows_updated: number | null;
+}
+const TRACKER_STATES: TrackerState[] = ["PUBLISHED", "UNVERIFIED", "FAILED", "REFUSED"];
+
+/** Ask n8n to publish this version's approved tasks to the tracker. The workflow decides what is approved. */
+export async function publishTrackerToN8n(t: N8nTarget, payload: { job_id: string; version: number }, fetchImpl: typeof fetch = fetch): Promise<TrackerOutcome> {
+  const none = { tab: null, sheet_url: null, rows_added: null, rows_updated: null };
+  let res: Response;
+  try {
+    res = await fetchImpl(`${t.base}/actionready/v1/tracker/publish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json", [t.headerName]: t.secret },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(45_000),
+    });
+  } catch {
+    return { state: "UNKNOWN", code: "NO_RESPONSE", message: "The workflow did not answer, so the tracker state is unknown. Use Sync tracker to check.", ...none };
+  }
+  if (res.status === 404) return { state: "REFUSED", code: "ENDPOINT_NOT_PUBLISHED", message: "The tracker endpoint is not published in n8n.", ...none };
+  const b = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+  const raw = typeof b?.tracker_status === "string" ? (b.tracker_status as TrackerState) : "UNKNOWN";
+  const err = b?.error && typeof b.error === "object" ? (b.error as { code?: unknown; message?: unknown }) : null;
+  const url = typeof b?.sheet_url === "string" && /^https:\/\/docs\.google\.com\/spreadsheets\/d\/[A-Za-z0-9_-]+\/edit#gid=\d+$/.test(b.sheet_url) ? b.sheet_url : null;
+  const n = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? x : null);
+  return {
+    state: TRACKER_STATES.includes(raw) ? raw : "UNKNOWN",
+    code: typeof err?.code === "string" ? err.code.slice(0, 60) : null,
+    message: (typeof err?.message === "string" ? err.message : typeof b?.note === "string" ? b.note : `The workflow returned HTTP ${res.status}.`).slice(0, 400),
+    tab: typeof b?.tab === "string" ? b.tab.slice(0, 100) : null,
+    sheet_url: url,
+    rows_added: n(b?.rows_added),
+    rows_updated: n(b?.rows_updated),
+  };
+}

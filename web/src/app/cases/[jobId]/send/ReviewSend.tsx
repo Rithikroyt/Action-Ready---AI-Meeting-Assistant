@@ -3,7 +3,7 @@
 import { useId, useMemo, useState } from "react";
 import Link from "next/link";
 import type { JobView } from "@/lib/contract";
-import type { DispatchOutcome } from "@/lib/n8n";
+import type { DispatchOutcome, TrackerOutcome } from "@/lib/n8n";
 import { approvalStatus, readinessStatus, reviewStatus } from "@/lib/status";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Modal } from "@/components/Modal";
@@ -55,6 +55,8 @@ export function ReviewSend({ job, blocked }: { job: JobView; blocked: string | n
   const [open, setOpen] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [tracker, setTracker] = useState<TrackerOutcome | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const active = drafts.find((d) => d.key === activeKey) ?? drafts[0];
   if (!active) return null;
@@ -100,7 +102,8 @@ export function ReviewSend({ job, blocked }: { job: JobView; blocked: string | n
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recipients, version: job.version, employee: target.employee, confirm: true }),
       });
-      const body = (await res.json().catch(() => ({}))) as { dispatch?: DispatchOutcome; error?: { message?: string } };
+      const body = (await res.json().catch(() => ({}))) as { dispatch?: DispatchOutcome; tracker?: TrackerOutcome | null; error?: { message?: string } };
+      if (body.tracker) setTracker(body.tracker);
       if (body.dispatch) {
         result = { kind: "outcome", o: body.dispatch };
         if (body.dispatch.state === "SENT")
@@ -119,6 +122,21 @@ export function ReviewSend({ job, blocked }: { job: JobView; blocked: string | n
   }
 
   const sentCount = drafts.filter((d) => done(d) === "SENT").length;
+
+  async function syncTracker() {
+    setSyncing(true);
+    try {
+      const res = await fetch(`/api/jobs/${job.job_id}/tracker`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ version: job.version }) });
+      const body = (await res.json().catch(() => ({}))) as { tracker?: TrackerOutcome; error?: { message?: string } };
+      setTracker(
+        body.tracker ?? { state: "FAILED", code: "HTTP_" + res.status, message: body.error?.message ?? `Request failed (HTTP ${res.status}).`, tab: null, sheet_url: null, rows_added: null, rows_updated: null },
+      );
+    } catch {
+      setTracker({ state: "UNKNOWN", code: "NO_RESPONSE", message: "No response, so the tracker state is unknown. Try again.", tab: null, sheet_url: null, rows_added: null, rows_updated: null });
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   return (
     <>
@@ -250,6 +268,7 @@ export function ReviewSend({ job, blocked }: { job: JobView; blocked: string | n
             )}
 
             {st.result && <ResultBanner r={st.result} />}
+            {tracker && <TrackerBanner t={tracker} />}
 
             <button type="button" className="btn primary" onClick={review} disabled={locked || (st.recipients.length === 0 && !st.input.trim())}>
               Review and approve
@@ -258,6 +277,11 @@ export function ReviewSend({ job, blocked }: { job: JobView; blocked: string | n
               <IconLock width={13} height={13} style={{ verticalAlign: -2, marginRight: 4 }} />
               Nothing is sent until you approve. The workflow re-checks the version, AI review, readiness, route, the exact text and the daily send limit.
             </p>
+            {!blocked && (
+              <button type="button" className="btn sm" onClick={() => void syncTracker()} disabled={syncing}>
+                {syncing ? "Syncing tracker…" : "Sync task tracker"}
+              </button>
+            )}
             <Link href={`/cases/${job.job_id}`} className="small">
               ← Back to the case
             </Link>
@@ -329,6 +353,30 @@ function ResultBanner({ r }: { r: Result }) {
           <>
             {" "}
             Gmail message ID <code>{o.gmail_message_id}</code>.
+          </>
+        )}
+      </span>
+    </div>
+  );
+}
+
+/** The tracker result is reported separately from the email result: one can succeed while the other fails. */
+function TrackerBanner({ t }: { t: TrackerOutcome }) {
+  const ok = t.state === "PUBLISHED";
+  const title = ok ? "Tracker: published and verified." : t.state === "REFUSED" ? "Tracker: not published." : t.state === "UNVERIFIED" ? "Tracker: written but not verified." : t.state === "FAILED" ? "Tracker: failed — needs attention." : "Tracker: state unknown.";
+  const counts = ok && (t.rows_added !== null || t.rows_updated !== null) ? ` ${t.rows_added ?? 0} added, ${t.rows_updated ?? 0} updated in “${t.tab}”.` : "";
+  return (
+    <div className={`banner ${ok ? "info" : t.state === "REFUSED" ? "warn" : "error"}`} role={ok ? "status" : "alert"}>
+      {ok ? <IconCheckCircle /> : <IconAlert />}
+      <span>
+        <strong>{title}</strong>
+        {counts} {ok ? "Employees can update Status and Update note; re-syncing never overwrites them." : t.message}
+        {t.sheet_url && (
+          <>
+            {" "}
+            <a href={t.sheet_url} target="_blank" rel="noopener noreferrer">
+              Open the tracker tab
+            </a>
           </>
         )}
       </span>

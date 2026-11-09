@@ -2,7 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { isFinal, normalizeJob, type JobView, type Submission } from "./contract";
 import { getConfig } from "./env";
-import { dispatchToN8n, fetchJobFromN8n, submitToN8n, type DispatchOutcome } from "./n8n";
+import { dispatchToN8n, fetchJobFromN8n, publishTrackerToN8n, submitToN8n, type DispatchOutcome, type TrackerOutcome } from "./n8n";
 import { buildDemoBody, demoScenarioFor, rebuildDemoBody } from "./demo";
 import { addJob, findByRequest, findJob, listJobs, registryWritable, updateSnapshot, type RegistryEntry } from "./registry";
 
@@ -149,7 +149,7 @@ export const dispatchKey = (job_id: string, version: number, recipients: string[
   createHash("sha256").update(JSON.stringify([job_id, version, normalizeRecipients(recipients), subject, body])).digest("hex");
 
 export type DispatchRequestResult =
-  | { kind: "outcome"; outcome: DispatchOutcome }
+  | { kind: "outcome"; outcome: DispatchOutcome; tracker: TrackerOutcome | null }
   | { kind: "invalid" | "not_found" | "unavailable" | "stale"; message: string };
 
 /**
@@ -188,5 +188,16 @@ export async function requestDispatch(owner: string, job_id: string, input: { re
     { job_id, version: input.version, employee, recipients, subject, body, dispatch_key: dispatchKey(job_id, input.version, recipients, subject, body), confirm: true },
     fetchImpl,
   );
-  return { kind: "outcome", outcome };
+  // An approved message that Gmail accepted is the approval evidence for the tracker: publish those tasks now.
+  const tracker = outcome.state === "SENT" ? await publishTrackerToN8n(cfg.n8n, { job_id, version: input.version }, fetchImpl) : null;
+  return { kind: "outcome", outcome, tracker };
+}
+
+/** Re-sync this version's approved tasks to the tracker (never re-runs the AI, never sends email). */
+export async function syncTracker(owner: string, job_id: string, version: number, fetchImpl: typeof fetch = fetch): Promise<{ kind: "ok"; tracker: TrackerOutcome } | { kind: "not_found" | "unavailable"; message: string }> {
+  const cfg = getConfig();
+  if (cfg.mode !== "live" || !cfg.n8n) return { kind: "unavailable", message: "The task tracker is only available for live workflow cases." };
+  const entry = await findJob(owner, job_id).catch(() => null);
+  if (!entry || entry.mode !== "LIVE") return { kind: "not_found", message: "No live case with this ID for this account." };
+  return { kind: "ok", tracker: await publishTrackerToN8n(cfg.n8n, { job_id, version }, fetchImpl) };
 }
