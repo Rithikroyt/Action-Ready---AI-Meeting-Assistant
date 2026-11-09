@@ -40,3 +40,14 @@ describe("open access", () => {
     }
   });
 });
+
+describe("settings pasted into a host", () => {
+  it("tolerate spaces, quotes and capitals in ACTIONREADY_MODE", async () => {
+    for (const v of [" live", "live ", '"live"', "'live'", "LIVE", "Live"]) {
+      process.env.ACTIONREADY_MODE = v;
+      expect(getConfig().mode).toBe("live");
+    }
+    process.env.ACTIONREADY_MODE = "demo";
+    expect(getConfig().mode).toBe("demo");
+  });
+});

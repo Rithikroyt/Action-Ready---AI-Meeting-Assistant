@@ -29,9 +29,11 @@ export function normalizeStatusPath(raw: string): string {
 }
 
 export function getConfig(): AppConfig {
-  const e = process.env;
+  // Values pasted into a host's settings page often carry stray spaces or surrounding quotes; strip them.
+  const e: Record<string, string | undefined> = {};
+  for (const [k, v] of Object.entries(process.env)) e[k] = typeof v === "string" ? v.trim().replace(/^(["'])(.*)\1$/, "$2").trim() : v;
   const problems: string[] = [];
-  const mode: Mode = e.ACTIONREADY_MODE === "live" ? "live" : "demo";
+  const mode: Mode = (e.ACTIONREADY_MODE ?? "").toLowerCase() === "live" ? "live" : "demo";
   // Live mode can start paid workflow runs, so an open (password-free) site is never allowed there.
   const openAccess = mode === "demo" && e.ACTIONREADY_OPEN_ACCESS === "true";
 
