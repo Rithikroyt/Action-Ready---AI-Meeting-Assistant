@@ -66,13 +66,27 @@ export function ReviewSend({ job, blocked }: { job: JobView; blocked: string | n
   };
   const locked = !!blocked || busy || ["SENT", "UNCERTAIN", "SENDING"].includes(done(active) ?? "");
 
-  function add() {
+  /** Adds whatever is typed in the box. Returns the new recipient list, or null if the input is invalid. */
+  function add(): string[] | null {
     const parts = st.input.split(/[\s,;]+/).map((p) => p.trim().toLowerCase()).filter(Boolean);
     const bad = parts.filter((p) => !EMAIL_RE.test(p));
-    if (bad.length) return patch({ inputErr: `Not a valid email address: ${bad[0]}` });
+    if (bad.length) {
+      patch({ inputErr: `Not a valid email address: ${bad[0]}` });
+      return null;
+    }
     const next = [...new Set([...st.recipients, ...parts])];
-    if (next.length > 10) return patch({ inputErr: "At most 10 recipients per message." });
+    if (next.length > 10) {
+      patch({ inputErr: "At most 10 recipients per message." });
+      return null;
+    }
     patch({ recipients: next, input: "", inputErr: null, result: null });
+    return next;
+  }
+
+  /** "Review and approve" also picks up an address that was typed but not yet added. */
+  function review() {
+    const list = st.input.trim() ? add() : st.recipients;
+    if (list && list.length) setOpen(true);
   }
 
   async function send() {
@@ -215,7 +229,7 @@ export function ReviewSend({ job, blocked }: { job: JobView; blocked: string | n
                 aria-describedby={`${ids.input}-hint`}
                 disabled={locked}
               />
-              <button type="button" className="btn" onClick={add} disabled={locked || !st.input.trim()}>
+              <button type="button" className="btn" onClick={() => void add()} disabled={locked || !st.input.trim()}>
                 Add
               </button>
             </div>
@@ -237,7 +251,7 @@ export function ReviewSend({ job, blocked }: { job: JobView; blocked: string | n
 
             {st.result && <ResultBanner r={st.result} />}
 
-            <button type="button" className="btn primary" onClick={() => setOpen(true)} disabled={locked || st.recipients.length === 0}>
+            <button type="button" className="btn primary" onClick={review} disabled={locked || (st.recipients.length === 0 && !st.input.trim())}>
               Review and approve
             </button>
             <p className="hint">
