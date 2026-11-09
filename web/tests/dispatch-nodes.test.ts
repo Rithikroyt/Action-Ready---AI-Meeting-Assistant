@@ -22,9 +22,9 @@ describe("Validate Dispatch Request", () => {
   it("with allow_any_recipient, any valid address is accepted (it becomes part of what is approved)", () => {
     expect(validate(goodBody({ recipients: ["someone@example.org"] }), { ...SETTINGS, allow_any_recipient: true } as typeof SETTINGS)).toMatchObject({ valid: true, recipients: ["someone@example.org"], employee: null });
   });
-  it("the shipped settings node keeps sending OFF, allows any recipient and caps daily sends", () => {
+  it("the shipped settings node: sending ON (owner-authorized 2026-11-09), any recipient after approval, daily cap", () => {
     const shipped = run("1-settings.js", [{ body: {} }])[0]!.settings as Record<string, unknown>;
-    expect(shipped).toMatchObject({ send_enabled: false, allow_any_recipient: true, daily_send_cap: 25, max_recipients: 10 });
+    expect(shipped).toMatchObject({ send_enabled: true, allow_any_recipient: true, daily_send_cap: 25, max_recipients: 10 });
   });
   it("accepts a confirmed, allowlisted request and normalizes recipients", () => {
     expect(validate(goodBody())).toMatchObject({ valid: true, recipients: ["maya@asu.edu", "owner.test@example.com"], version: 1 });
