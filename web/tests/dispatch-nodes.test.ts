@@ -20,7 +20,7 @@ const validate = (body: unknown, settings = SETTINGS) => run("2-validate.js", [{
 
 describe("Validate Dispatch Request", () => {
   it("with allow_any_recipient, any valid address is accepted (it becomes part of what is approved)", () => {
-    expect(validate(goodBody({ recipients: ["someone@gmail.com"] }), { ...SETTINGS, allow_any_recipient: true } as typeof SETTINGS)).toMatchObject({ valid: true, recipients: ["someone@gmail.com"], employee: null });
+    expect(validate(goodBody({ recipients: ["someone@example.org"] }), { ...SETTINGS, allow_any_recipient: true } as typeof SETTINGS)).toMatchObject({ valid: true, recipients: ["someone@example.org"], employee: null });
   });
   it("the shipped settings node keeps sending OFF, allows any recipient and caps daily sends", () => {
     const shipped = run("1-settings.js", [{ body: {} }])[0]!.settings as Record<string, unknown>;

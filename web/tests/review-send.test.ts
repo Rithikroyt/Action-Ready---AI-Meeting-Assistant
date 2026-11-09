@@ -123,7 +123,7 @@ describe("per-employee drafts", () => {
   it("sends the named employee's stored draft byte-exact, never the team draft", async () => {
     const { service } = await liveWithJob();
     const m = n8n({ status: 200, body: { dispatch_status: "SEND_DISABLED" } });
-    await service.requestDispatch("owner", JOB, req({ employee: "maya chen", recipients: ["maya@gmail.com"] }), m.fn);
+    await service.requestDispatch("owner", JOB, req({ employee: "maya chen", recipients: ["maya@example.org"] }), m.fn);
     const b = m.calls.find((c) => c.method === "POST")!.body as { employee: string; subject: string; body: string };
     expect(b).toMatchObject({ employee: "maya chen", subject: "Your action items: Atlas", body: statusBody().employee_drafts[0]!.body });
   });
