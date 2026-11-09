@@ -18,7 +18,7 @@ function blocker(job: JobView): string | null {
   if (job.operational_readiness !== "READY") return `Operational readiness is ${job.operational_readiness.toLowerCase().replace("_", " ")}. Only READY plans can be sent.`;
   const r = routingFor(job);
   if (r.route.id !== "APPROVAL") return `This case is routed to ${r.route.label} (${r.route.role}), not to approval.`;
-  if (!job.draft) return "This case has no reviewed draft to send.";
+  if (!job.draft && job.employee_drafts.length === 0) return "This case has no reviewed draft to send.";
   if (job.version === null) return "The reviewed version is unknown.";
   return null;
 }
@@ -30,6 +30,7 @@ export default async function SendPage({ params }: { params: Promise<{ jobId: st
   const res = await getJobView(OWNER, jobId);
   const job = res.kind === "ok" ? res.view : null;
   const why = job ? blocker(job) : res.kind === "unavailable" ? res.message : "No case with this ID for this account.";
+  const hasDrafts = !!job && (job.employee_drafts.length > 0 || !!job.draft);
   return (
     <AppShell>
       <div className="page-head">
@@ -42,10 +43,12 @@ export default async function SendPage({ params }: { params: Promise<{ jobId: st
             <span aria-current="page">Review &amp; Send</span>
           </nav>
           <h1>Review &amp; Send</h1>
-          <p className="sub">Approve the exact message and recipients for this version. The workflow re-checks every rule before Gmail is called.</p>
+          <p className="sub">One draft per employee, plus the team summary. Add each person&apos;s email, approve the exact message, and send. The workflow re-checks every rule before Gmail is called.</p>
         </div>
       </div>
-      {why || !job ? (
+      {job && hasDrafts ? (
+        <ReviewSend job={job} blocked={why} />
+      ) : (
         <section className="card">
           <div className="empty">
             <h2>Not available for this case</h2>
@@ -57,8 +60,6 @@ export default async function SendPage({ params }: { params: Promise<{ jobId: st
             </Link>
           </div>
         </section>
-      ) : (
-        <ReviewSend job={job} />
       )}
     </AppShell>
   );

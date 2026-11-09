@@ -6,12 +6,14 @@ import { requestDispatch } from "@/lib/service";
 
 export const dynamic = "force-dynamic";
 
-// Review & Send: the browser supplies only recipients, the version it reviewed, and explicit confirmation.
+// Review & Send: the browser supplies only recipients, the version it reviewed, which draft (team summary or one
+// employee), and explicit confirmation.
 // The message text comes from the stored reviewed draft; n8n re-checks every rule before anything is sent.
 const bodySchema = z
   .object({
     recipients: z.array(z.string().max(254)).min(1).max(10),
     version: z.number().int().min(1).max(20),
+    employee: z.string().trim().min(1).max(120).nullable().optional(),
     confirm: z.literal(true),
   })
   .strict();

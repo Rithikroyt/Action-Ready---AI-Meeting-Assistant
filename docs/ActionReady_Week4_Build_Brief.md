@@ -139,20 +139,30 @@ Use GPI (granti-rouge.vercel.app) as a reference for narrative hierarchy and evi
 - Do not use the overloaded 6 + 4 vs 8 case to demonstrate a successful send. Use a genuinely feasible, newly reviewed case.
 - Keep the 2–6 November fixtures, but remove the assumption that every case uses that single week.
 
-## Current status (updated 2026-11-08)
+## Current status (updated 2026-11-09)
 
 | Stage | Status |
 |---|---|
-| A | **Done and live.** The n8n Coordinator was published as version `2a6ac61a` on 2026-11-09, and the website queue and route panel are deployed. |
-| D | **Built, with sending switched off.** The guarded `actionready/v1/dispatch` branch, the `AR_Dispatches` table, and the website's Review & Send page and API are in place. The n8n branch is an unpublished draft (`9d7d2661`). |
-| B, C, E | Not started. C needs a Google Sheets credential in n8n. B and the Vercel live mode are below. |
+| A | **Done and live.** The n8n Coordinator is published, and the website queue and route panel are deployed. |
+| D | **Built and published, with sending switched off.** n8n version `34a01708` (published 2026-11-09) adds one fixed-template draft per employee (`employee_drafts` in the status response) and lets the approver type any recipient. It also caps sends at 25 recipients per UTC day. The website's Review & Send page lists every employee's draft plus the team summary, each with its own recipients and approval. |
+| C | **Blocked.** It needs a Google Sheets OAuth2 credential in n8n, which only the owner can create. |
+| B, E | Not started. B needs a Google OAuth client for sign-in, created by the owner. |
+
+**Per-employee drafts:**
+- **One template, two copies.** `n8n/shared/employee-drafts.js` is embedded verbatim in `Build Job Result` and in `Authorize Dispatch`.
+- **Server-side check.** The authorizer rebuilds the named employee's draft from the stored reviewed version and refuses any difference (`CONTENT_CHANGED`, `EMPLOYEE_NOT_IN_DRAFT`).
+- **Parity is tested.** `web/src/lib/employeeDrafts.ts` is the TypeScript port, and `web/tests/employee-drafts.test.ts` enforces that it matches.
+
+**Recorded LIVE checks (2026-11-09, no model run, nothing sent):**
+- The status endpoint returned `employee_drafts` for AR2-821, AR2-837 and AR2-848.
+- A dispatch request for the BLOCKED case AR2-821 was refused with `NOT_READY` before any claim was recorded.
 
 **Before the first real send:**
-1. Publish the n8n draft.
-2. Set the allowed recipients in `Week 4 Dispatch Settings`, then set `send_enabled: true`.
-3. Run one live analysis of a genuinely feasible (READY) meeting, then send exactly one message to an inbox the owner controls.
+1. Set `send_enabled: true` in `Week 4 Dispatch Settings`. This needs the owner's authorization.
+2. Run one live analysis of a genuinely feasible (READY) meeting, which is a paid model run.
+3. Send exactly one message to an inbox the owner controls.
 
-**One limit:** on Vercel, live-mode ownership still relies on the app's temporary job registry. Until Stage B lists cases from n8n, Review & Send for live cases is dependable only when the app runs locally or on a host with a persistent disk.
+**One limit:** on Vercel, live-mode ownership still relies on the app's temporary job registry. Until Stage B lists cases from n8n, Review & Send for live cases is dependable only when the app runs locally.
 
 **What Stage A includes:**
 - **Routing rules:** `web/src/lib/coordinator.ts` is the reference implementation and executable spec for the n8n Coordinator node. `web/tests/coordinator.test.ts` covers every synthetic scenario, the recorded live shapes (AR2-821, AR2-848, AR2-837 and AR2-832), and an exhaustive check that only a passing review with a READY result reaches the Approver.
@@ -160,7 +170,7 @@ Use GPI (granti-rouge.vercel.app) as a reference for narrative hierarchy and evi
 - **Labelling:** routes are computed by the app from the official result, and the drawer says so. The website should switch to the workflow-recorded route once the n8n Coordinator is deployed.
 
 **Blockers:**
-- **n8n draft drift:** the workflow's draft (`63b4421f`, saved 2026-11-04) differs from the published version (`3ccd52ea`). The workflow name changed too. Publishing any Week 4 node would also publish those changes, so the owner must review them first.
+- **n8n draft drift (resolved 2026-11-09):** the draft was restored to the published version before any Week 4 node was added.
 - **Missing Google Sheets credential:** n8n has no Google Sheets credential. The only Google credentials are a Gmail OAuth2 connection and a Gemini key.
 - **No Supabase project:** none exists yet. Stage B needs one, plus a Google OAuth client, both created by the owner.
 - **Sheet not inspected:** the Google Sheet hasn't been read yet, because no Sheets connector or credential is available.

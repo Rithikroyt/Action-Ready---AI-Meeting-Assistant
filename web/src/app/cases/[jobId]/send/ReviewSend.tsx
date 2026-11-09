@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import Link from "next/link";
 import type { JobView } from "@/lib/contract";
 import type { DispatchOutcome } from "@/lib/n8n";
@@ -13,170 +13,249 @@ import { IconAlert, IconCheckCircle, IconLock, IconX } from "@/components/Icons"
 const EMAIL_RE = /^[a-z0-9._%+-]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/;
 
 type Result = { kind: "outcome"; o: DispatchOutcome } | { kind: "error"; message: string };
+interface DraftItem {
+  key: string;
+  /** null = the team summary draft. */
+  employee: string | null;
+  label: string;
+  meta: string;
+  subject: string;
+  body: string;
+}
+interface DraftState {
+  recipients: string[];
+  input: string;
+  inputErr: string | null;
+  result: Result | null;
+}
+const EMPTY: DraftState = { recipients: [], input: "", inputErr: null, result: null };
 
-/** Exact-message approval. The text shown is the stored reviewed draft; the server sends exactly that text. */
-export function ReviewSend({ job }: { job: JobView }) {
+/**
+ * Exact-message approval, one draft at a time: a fixed-template draft per action owner plus the team summary.
+ * The text shown is the workflow's stored text; the server sends exactly that text after n8n re-checks every rule.
+ * `blocked` (a reason) turns the page into a read-only preview — nothing can be sent.
+ */
+export function ReviewSend({ job, blocked }: { job: JobView; blocked: string | null }) {
   const ids = { input: useId(), consent: useId() };
   const toast = useToast();
-  const [recipients, setRecipients] = useState<string[]>([]);
-  const [draft, setDraft] = useState("");
-  const [inputErr, setInputErr] = useState<string | null>(null);
+  const drafts = useMemo<DraftItem[]>(() => {
+    const list: DraftItem[] = job.employee_drafts.map((d) => ({
+      key: `emp:${d.employee.toLowerCase()}`,
+      employee: d.employee,
+      label: d.employee,
+      meta: `${d.action_count} action item${d.action_count === 1 ? "" : "s"}`,
+      subject: d.subject,
+      body: d.body,
+    }));
+    if (job.draft) list.push({ key: "team", employee: null, label: "Team summary", meta: "Whole plan, one message", subject: job.draft.subject, body: job.draft.body });
+    return list;
+  }, [job]);
+  const [activeKey, setActiveKey] = useState(drafts[0]?.key ?? "");
+  const [states, setStates] = useState<Record<string, DraftState>>({});
   const [open, setOpen] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<Result | null>(null);
-  const draftMsg = job.draft!;
-  const locked = busy || (result?.kind === "outcome" && ["SENT", "UNCERTAIN", "SENDING"].includes(result.o.state));
+
+  const active = drafts.find((d) => d.key === activeKey) ?? drafts[0];
+  if (!active) return null;
+  const st = states[active.key] ?? EMPTY;
+  const patch = (p: Partial<DraftState>) => setStates((s) => ({ ...s, [active.key]: { ...(s[active.key] ?? EMPTY), ...p } }));
+  const done = (d: DraftItem) => {
+    const r = states[d.key]?.result;
+    return r?.kind === "outcome" ? r.o.state : null;
+  };
+  const locked = !!blocked || busy || ["SENT", "UNCERTAIN", "SENDING"].includes(done(active) ?? "");
 
   function add() {
-    const parts = draft.split(/[\s,;]+/).map((p) => p.trim().toLowerCase()).filter(Boolean);
+    const parts = st.input.split(/[\s,;]+/).map((p) => p.trim().toLowerCase()).filter(Boolean);
     const bad = parts.filter((p) => !EMAIL_RE.test(p));
-    if (bad.length) return setInputErr(`Not a valid email address: ${bad[0]}`);
-    const next = [...new Set([...recipients, ...parts])];
-    if (next.length > 10) return setInputErr("At most 10 recipients per message.");
-    setRecipients(next);
-    setDraft("");
-    setInputErr(null);
-    setResult(null);
+    if (bad.length) return patch({ inputErr: `Not a valid email address: ${bad[0]}` });
+    const next = [...new Set([...st.recipients, ...parts])];
+    if (next.length > 10) return patch({ inputErr: "At most 10 recipients per message." });
+    patch({ recipients: next, input: "", inputErr: null, result: null });
   }
 
   async function send() {
+    const target = active!;
+    const recipients = st.recipients;
     setBusy(true);
+    let result: Result;
     try {
       const res = await fetch(`/api/jobs/${job.job_id}/dispatch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipients, version: job.version, confirm: true }),
+        body: JSON.stringify({ recipients, version: job.version, employee: target.employee, confirm: true }),
       });
       const body = (await res.json().catch(() => ({}))) as { dispatch?: DispatchOutcome; error?: { message?: string } };
       if (body.dispatch) {
-        setResult({ kind: "outcome", o: body.dispatch });
-        if (body.dispatch.state === "SENT") toast({ tone: "success", title: body.dispatch.replay ? "Already sent earlier" : "Gmail accepted the message", body: "Delivery and reading are not confirmed." });
-      } else setResult({ kind: "error", message: body.error?.message ?? `Request failed (HTTP ${res.status}). Nothing was sent.` });
+        result = { kind: "outcome", o: body.dispatch };
+        if (body.dispatch.state === "SENT")
+          toast({ tone: "success", title: body.dispatch.replay ? "Already sent earlier" : `Gmail accepted the message for ${target.label}`, body: "Delivery and reading are not confirmed." });
+      } else result = { kind: "error", message: body.error?.message ?? `Request failed (HTTP ${res.status}). Nothing was sent.` };
     } catch {
-      setResult({
+      result = {
         kind: "outcome",
         o: { state: "UNCERTAIN", http: null, code: "NO_RESPONSE", message: "The connection dropped. The message may or may not have been sent — check the Sent folder before approving again.", gmail_message_id: null, replay: false },
-      });
-    } finally {
-      setBusy(false);
-      setOpen(false);
-      setAgreed(false);
+      };
     }
+    setStates((s) => ({ ...s, [target.key]: { ...(s[target.key] ?? EMPTY), result } }));
+    setBusy(false);
+    setOpen(false);
+    setAgreed(false);
   }
 
+  const sentCount = drafts.filter((d) => done(d) === "SENT").length;
+
   return (
-    <div className="send-grid">
-      <section className="card" aria-labelledby="recip-h">
-        <div className="card-head">
-          <h2 id="recip-h">Recipients</h2>
-          <span className="small muted">{recipients.length} / 10</span>
-        </div>
-        <div className="card-body stack">
-          <label htmlFor={ids.input} className="small">
-            Add email addresses (comma or space separated)
-          </label>
-          <div className="row" style={{ gap: 8 }}>
-            <input
-              id={ids.input}
-              className="input"
-              type="email"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  add();
-                }
-              }}
-              placeholder="name@asu.edu"
-              aria-invalid={inputErr ? true : undefined}
-              aria-describedby={`${ids.input}-hint`}
-              disabled={locked}
-            />
-            <button type="button" className="btn" onClick={add} disabled={locked || !draft.trim()}>
-              Add
-            </button>
-          </div>
-          <span id={`${ids.input}-hint`} className={inputErr ? "err small" : "hint"}>
-            {inputErr ?? "Only addresses on the allowlist in n8n (Week 4 Dispatch Settings) are accepted. Changing recipients needs a new approval."}
+    <>
+      {blocked && (
+        <div className="banner warn" role="status" style={{ marginBottom: 16 }}>
+          <IconLock />
+          <span>
+            <strong>Preview only — sending is not available for this case.</strong> {blocked}
           </span>
-          {recipients.length > 0 && (
-            <ul className="recip-list">
-              {recipients.map((r) => (
-                <li key={r}>
-                  <span className="mono">{r}</span>
-                  <button type="button" className="toast-x" aria-label={`Remove ${r}`} onClick={() => setRecipients(recipients.filter((x) => x !== r))} disabled={locked}>
-                    <IconX width={13} height={13} />
+        </div>
+      )}
+      <div className="send-grid send-grid-3">
+        <section className="card" aria-labelledby="drafts-h">
+          <div className="card-head">
+            <h2 id="drafts-h">Drafts</h2>
+            <span className="small muted">
+              {sentCount} / {drafts.length} sent
+            </span>
+          </div>
+          <ul className="draft-list" role="listbox" aria-label="Choose a draft to review">
+            {drafts.map((d) => {
+              const s = done(d);
+              const n = states[d.key]?.recipients.length ?? 0;
+              return (
+                <li key={d.key}>
+                  <button type="button" role="option" aria-selected={d.key === active.key} className={`draft-pick${d.key === active.key ? " on" : ""}`} onClick={() => setActiveKey(d.key)}>
+                    <span className="draft-avatar" aria-hidden>
+                      {d.employee ? d.employee.slice(0, 1).toUpperCase() : "∑"}
+                    </span>
+                    <span className="draft-pick-text">
+                      <strong>{d.label}</strong>
+                      <span className="small muted">
+                        {d.meta}
+                        {n > 0 && !s ? ` · ${n} recipient${n === 1 ? "" : "s"}` : ""}
+                      </span>
+                    </span>
+                    {s && <span className={`draft-state st-${s.toLowerCase()}`}>{s === "SENT" ? "Sent" : s === "SEND_DISABLED" ? "Approved" : s.charAt(0) + s.slice(1).toLowerCase().replace("_", " ")}</span>}
                   </button>
                 </li>
-              ))}
-            </ul>
-          )}
-          <dl className="kv" style={{ marginTop: 6 }}>
-            <dt>AI review</dt>
-            <dd>
-              <StatusBadge def={reviewStatus(job)} />
-            </dd>
-            <dt>Readiness</dt>
-            <dd>
-              <StatusBadge def={readinessStatus(job.operational_readiness)} />
-            </dd>
-            <dt>Approval</dt>
-            <dd>
-              <StatusBadge def={approvalStatus(job)} />
-            </dd>
-          </dl>
-        </div>
-      </section>
+              );
+            })}
+          </ul>
+          <div className="card-body">
+            <dl className="kv">
+              <dt>AI review</dt>
+              <dd>
+                <StatusBadge def={reviewStatus(job)} />
+              </dd>
+              <dt>Readiness</dt>
+              <dd>
+                <StatusBadge def={readinessStatus(job.operational_readiness)} />
+              </dd>
+              <dt>Approval</dt>
+              <dd>
+                <StatusBadge def={approvalStatus(job)} />
+              </dd>
+            </dl>
+          </div>
+        </section>
 
-      <section className="card" aria-labelledby="preview-h">
-        <div className="card-head">
-          <h2 id="preview-h">Exact message</h2>
-          <span className="small muted">
-            {job.case_id} · version {job.version}
-          </span>
-        </div>
-        <div className="card-body stack">
-          <dl className="mail-head">
-            <dt>From</dt>
-            <dd>The organizer Gmail account connected in n8n</dd>
-            <dt>To</dt>
-            <dd>{recipients.length ? recipients.join(", ") : <span className="muted">No recipients yet</span>}</dd>
-            <dt>Subject</dt>
-            <dd>
-              <strong>{draftMsg.subject}</strong>
-            </dd>
-          </dl>
-          <pre className="mail-body">{draftMsg.body}</pre>
-          {job.actions.length > 0 && (
-            <p className="small muted">
-              Included actions: {job.actions.map((a) => a.action_id).join(", ")} · reviewed draft, sent exactly as shown
-            </p>
-          )}
+        <section className="card" aria-labelledby="preview-h">
+          <div className="card-head">
+            <h2 id="preview-h">Exact message · {active.label}</h2>
+            <span className="small muted">
+              {job.case_id ?? "Demo case"} · {job.version !== null ? `version ${job.version}` : "synthetic, no version"}
+            </span>
+          </div>
+          <div className="card-body stack">
+            <dl className="mail-head">
+              <dt>From</dt>
+              <dd>The organizer Gmail account connected in n8n</dd>
+              <dt>To</dt>
+              <dd>{st.recipients.length ? st.recipients.join(", ") : <span className="muted">No recipients yet</span>}</dd>
+              <dt>Subject</dt>
+              <dd>
+                <strong>{active.subject}</strong>
+              </dd>
+            </dl>
+            <pre className="mail-body">{active.body}</pre>
+            <p className="small muted">Built from the reviewed action records with a fixed template — no extra AI call. It is sent exactly as shown.</p>
+          </div>
+        </section>
 
-          {result && <ResultBanner r={result} />}
+        <section className="card" aria-labelledby="recip-h">
+          <div className="card-head">
+            <h2 id="recip-h">Send to</h2>
+            <span className="small muted">{st.recipients.length} / 10</span>
+          </div>
+          <div className="card-body stack">
+            <label htmlFor={ids.input} className="small">
+              {active.employee ? `${active.employee}'s email address` : "Email addresses"} (comma or space separated)
+            </label>
+            <div className="row" style={{ gap: 8 }}>
+              <input
+                id={ids.input}
+                className="input"
+                type="email"
+                value={st.input}
+                onChange={(e) => patch({ input: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    add();
+                  }
+                }}
+                placeholder="name@example.com"
+                aria-invalid={st.inputErr ? true : undefined}
+                aria-describedby={`${ids.input}-hint`}
+                disabled={locked}
+              />
+              <button type="button" className="btn" onClick={add} disabled={locked || !st.input.trim()}>
+                Add
+              </button>
+            </div>
+            <span id={`${ids.input}-hint`} className={st.inputErr ? "err small" : "hint"}>
+              {st.inputErr ?? "Recipients are part of what you approve. Changing them needs a new approval."}
+            </span>
+            {st.recipients.length > 0 && (
+              <ul className="recip-list">
+                {st.recipients.map((r) => (
+                  <li key={r}>
+                    <span className="mono">{r}</span>
+                    <button type="button" className="toast-x" aria-label={`Remove ${r}`} onClick={() => patch({ recipients: st.recipients.filter((x) => x !== r), result: null })} disabled={locked}>
+                      <IconX width={13} height={13} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
 
-          <div className="submit-bar">
-            <p className="hint">
-              <IconLock width={13} height={13} style={{ verticalAlign: -2, marginRight: 4 }} />
-              Nothing is sent until you approve. The workflow re-checks version, review, readiness, route and recipients.
-            </p>
-            <button type="button" className="btn primary" onClick={() => setOpen(true)} disabled={locked || recipients.length === 0}>
+            {st.result && <ResultBanner r={st.result} />}
+
+            <button type="button" className="btn primary" onClick={() => setOpen(true)} disabled={locked || st.recipients.length === 0}>
               Review and approve
             </button>
+            <p className="hint">
+              <IconLock width={13} height={13} style={{ verticalAlign: -2, marginRight: 4 }} />
+              Nothing is sent until you approve. The workflow re-checks the version, AI review, readiness, route, the exact text and the daily send limit.
+            </p>
+            <Link href={`/cases/${job.job_id}`} className="small">
+              ← Back to the case
+            </Link>
           </div>
-          <Link href={`/cases/${job.job_id}`} className="small">
-            ← Back to the case
-          </Link>
-        </div>
-      </section>
+        </section>
+      </div>
 
       <Modal
         open={open}
         onClose={() => !busy && setOpen(false)}
         tone="ready"
-        eyebrow={`Approve version ${job.version}`}
+        eyebrow={`Approve version ${job.version} · ${active.label}`}
         title="Send this exact message?"
         footer={
           <div className="row" style={{ marginLeft: "auto" }}>
@@ -191,12 +270,12 @@ export function ReviewSend({ job }: { job: JobView }) {
       >
         <dl className="mail-head">
           <dt>To</dt>
-          <dd>{recipients.join(", ")}</dd>
+          <dd>{st.recipients.join(", ")}</dd>
           <dt>Subject</dt>
-          <dd>{draftMsg.subject}</dd>
+          <dd>{active.subject}</dd>
           <dt>Case</dt>
           <dd>
-            {job.case_id} · version {job.version}
+            {job.case_id ?? "Demo case"} · {job.version !== null ? `version ${job.version}` : "synthetic, no version"}
           </dd>
         </dl>
         <label htmlFor={ids.consent} className="consent">
@@ -204,7 +283,7 @@ export function ReviewSend({ job }: { job: JobView }) {
           <span>I approve sending this exact message to these recipients from the connected Gmail account.</span>
         </label>
       </Modal>
-    </div>
+    </>
   );
 }
 

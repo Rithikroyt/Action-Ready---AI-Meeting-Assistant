@@ -2,6 +2,8 @@
 // Everything the UI renders passes through normalizeJob(): an explicit allowlist with
 // unknown values mapped to null / "UNKNOWN" — never to invented zeroes or successes.
 import { z } from "zod";
+import { employeeDrafts, type EmployeeDraft } from "./employeeDrafts";
+export type { EmployeeDraft };
 
 export const SCHEMA_VERSION = "1";
 
@@ -114,6 +116,8 @@ export interface JobView {
   max_versions: number | null;
   actions: ActionItem[];
   draft: { subject: string; body: string; label: string } | null;
+  /** Week 4: one fixed-template draft per action owner (live: computed by n8n; demo: computed here from the synthetic actions). */
+  employee_drafts: EmployeeDraft[];
   workload: OwnerWorkload[];
   issues: Issue[];
   clarification_questions: string[];
@@ -143,6 +147,18 @@ export interface RecordedRouting {
 }
 
 /** Allowlisted parse of the workflow's `routing` object; anything unrecognised is dropped (never invented). */
+/** Allowlisted per-employee drafts exactly as the workflow returned them (text kept byte-exact). */
+function parseEmployeeDrafts(v: unknown): EmployeeDraft[] {
+  if (!Array.isArray(v)) return [];
+  return v.slice(0, 12).flatMap((d) => {
+    const o = d && typeof d === "object" ? (d as Record<string, unknown>) : null;
+    if (!o || typeof o.employee !== "string" || typeof o.subject !== "string" || typeof o.body !== "string") return [];
+    if (!o.employee.trim() || o.employee.length > 120 || o.subject.length > 300 || o.body.length > 6000) return [];
+    const ids = Array.isArray(o.action_ids) ? o.action_ids.filter((x): x is string => typeof x === "string").slice(0, 30).map((x) => x.slice(0, 20)) : [];
+    return [{ employee: o.employee, subject: o.subject, body: o.body, action_ids: ids, action_count: typeof o.action_count === "number" ? o.action_count : ids.length }];
+  });
+}
+
 function parseRouting(v: unknown): RecordedRouting | null {
   if (!v || typeof v !== "object") return null;
   const r = v as Record<string, unknown>;
@@ -537,6 +553,15 @@ export function normalizeJob(input: unknown, mode: DataMode, now = Date.now()): 
     max_versions: num.parse(o.max_versions),
     actions,
     draft: subject && body ? { subject, body, label: str(120).parse(draftObj?.label) ?? "Draft — not approved, not sent" } : null,
+    employee_drafts:
+      mode === "LIVE"
+        ? parseEmployeeDrafts(o.employee_drafts)
+        : // Demo cases have no reviewed version; label the reference as synthetic instead of printing "version null".
+          employeeDrafts(
+            { meeting_title: o.meeting_title, actions: actions.map((a) => ({ id: a.action_id, task: a.task, owner: a.owner, due_text: a.due_text, estimated_hours: a.estimated_hours })) },
+            "synthetic demo case",
+            null,
+          ).map((d) => ({ ...d, body: d.body.replace(/, version null$/, " (preview only, never sent)") })),
     workload,
     issues,
     clarification_questions: strList(20).parse(maybeJson(first(o, "clarification_questions", "questions") ?? readinessObj?.questions)),

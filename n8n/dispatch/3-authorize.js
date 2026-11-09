@@ -1,3 +1,41 @@
+// WEEK 4 EMPLOYEE DRAFTS (shared): one fixed-template email per action owner, built ONLY from the reviewed
+// version's validated actions. No model call. Identical copies live in Build Job Result and Authorize Dispatch,
+// so the website previews exactly what the dispatcher will accept. Parity: web/src/lib/employeeDrafts.ts.
+function employeeDrafts(cand, caseId, version) {
+  const clean = (x, n) => (typeof x === 'string' ? x.replace(/\s+/g, ' ').trim().slice(0, n) : '');
+  const title = clean(cand && cand.meeting_title, 150) || 'our recent meeting';
+  const acts = (cand && Array.isArray(cand.actions) ? cand.actions : []).slice(0, 30);
+  const groups = [];
+  for (const a of acts) {
+    const owner = clean(a && a.owner, 120);
+    const task = clean(a && a.task, 300);
+    if (!owner || !task) continue;
+    let g = groups.find((x) => x.key === owner.toLowerCase());
+    if (!g) groups.push((g = { key: owner.toLowerCase(), employee: owner, items: [] }));
+    g.items.push({ id: clean(a.id, 20) || null, task, due: clean(a.due_text, 120), hours: typeof a.estimated_hours === 'number' && isFinite(a.estimated_hours) ? a.estimated_hours : null });
+  }
+  return groups.slice(0, 12).map((g) => {
+    const n = g.items.length;
+    const known = g.items.filter((i) => i.hours !== null);
+    const total = Math.round(known.reduce((s, i) => s + i.hours, 0) * 100) / 100;
+    const lines = g.items.map((i) => '- ' + i.task + (i.due ? ' (due: ' + i.due + ')' : ' (no due date given)') + (i.hours !== null ? ', estimated ' + i.hours + ' h' : ''));
+    const body = [
+      'Hi ' + g.employee.split(' ')[0] + ',',
+      '',
+      (n === 1 ? 'Here is the action item assigned to you' : 'Here are the ' + n + ' action items assigned to you') + ' in ' + title + ':',
+      '',
+      ...lines,
+      '',
+      known.length === n ? 'Total estimated effort: ' + total + ' h.' : 'Estimated effort is known for ' + known.length + ' of ' + n + ' items (' + total + ' h so far).',
+      '',
+      'These items were taken from the meeting notes, checked by ActionReady (AI review plus a capacity check), and approved by the organizer before this email was sent. If anything is wrong or unclear, please reply to this email.',
+      '',
+      'Reference: ' + caseId + ', version ' + version,
+    ].join('\n');
+    return { employee: g.employee, subject: 'Your action items: ' + title, body, action_ids: g.items.map((i) => i.id).filter(Boolean), action_count: n };
+  });
+}
+
 // Authorize a send for the EXACT current version. Every rule is enforced here, server-side; the browser is never
 // the only check. A repeated dispatch_key returns the recorded outcome and never sends again.
 const req = $('Validate Dispatch Request').first().json;
@@ -41,7 +79,18 @@ try {
 }
 if (!rd || Number(rd.checked_version) !== req.version) return refuse('READINESS_NOT_CURRENT', 'The readiness check does not belong to this version.');
 if (rd.routing && rd.routing.route_id !== 'APPROVAL') return refuse('NOT_ROUTED_TO_APPROVAL', 'The Coordinator routed this case to ' + (rd.routing.label || rd.routing.route_id) + ', not to approval.');
-if (c.latest_subject !== req.subject || c.latest_body !== req.body) return refuse('CONTENT_CHANGED', 'The message differs from the reviewed draft for this version. Reload and approve again.');
+let expected = { subject: c.latest_subject, body: c.latest_body };
+if (req.employee !== null) {
+  let cand = null;
+  try { cand = JSON.parse(latest.evaluated_candidate_json || 'null'); } catch (e) { cand = null; }
+  const d = employeeDrafts(cand, c.case_id, c.latest_version).find((x) => x.employee.toLowerCase() === req.employee.toLowerCase());
+  if (!d) return refuse('EMPLOYEE_NOT_IN_DRAFT', 'No reviewed action items belong to ' + req.employee.slice(0, 60) + ' in this version.');
+  expected = d;
+}
+if (expected.subject !== req.subject || expected.body !== req.body) return refuse('CONTENT_CHANGED', 'The message differs from the reviewed draft for this version. Reload and approve again.');
+const today = new Date().toISOString().slice(0, 10);
+const usedToday = disp.filter((r) => ['SENT', 'SENDING', 'UNCERTAIN'].includes(r.status) && String(r.approved_at || '').slice(0, 10) === today).reduce((n, r) => n + (typeof r.recipient_count === 'number' ? r.recipient_count : 1), 0);
+if (usedToday + req.recipients.length > (S.daily_send_cap || 0)) return refuse('DAILY_LIMIT_REACHED', 'The daily send limit (' + S.daily_send_cap + ' recipients) would be exceeded. Nothing was sent.', 429);
 if (S.send_enabled !== true)
   return respond(403, {
     dispatch_status: 'SEND_DISABLED',
@@ -57,6 +106,7 @@ return [
       job_id: req.job_id,
       case_id: c.case_id,
       version: req.version,
+      employee: req.employee || '',
       recipients: req.recipients.join(', '),
       recipient_count: req.recipients.length,
       subject: req.subject,

@@ -95,6 +95,8 @@ export async function fetchJobFromN8n(t: N8nTarget, job_id: string, fetchImpl: t
 export interface DispatchPayload {
   job_id: string;
   version: number;
+  /** null = team summary draft; otherwise the action owner whose draft was approved. */
+  employee: string | null;
   recipients: string[];
   subject: string;
   body: string;

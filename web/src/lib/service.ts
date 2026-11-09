@@ -156,7 +156,7 @@ export type DispatchRequestResult =
  * Prepare and send a reviewed message. The draft is re-read FRESH from n8n (never from a cache) so approval always
  * applies to the current version, and the exact stored subject/body are used — the browser never supplies the text.
  */
-export async function requestDispatch(owner: string, job_id: string, input: { recipients: string[]; version: number; confirm: boolean }, fetchImpl: typeof fetch = fetch): Promise<DispatchRequestResult> {
+export async function requestDispatch(owner: string, job_id: string, input: { recipients: string[]; version: number; confirm: boolean; employee?: string | null }, fetchImpl: typeof fetch = fetch): Promise<DispatchRequestResult> {
   const cfg = getConfig();
   if (cfg.mode !== "live") return { kind: "unavailable", message: "Sending is only available for live workflow cases, never for synthetic demo cases." };
   if (!cfg.n8n) return { kind: "unavailable", message: "Live mode is not configured on the server." };
@@ -169,15 +169,23 @@ export async function requestDispatch(owner: string, job_id: string, input: { re
   if (!entry || entry.mode !== "LIVE") return { kind: "not_found" as const, message: "No live case with this ID for this account." };
   const fresh = await fetchJobFromN8n(cfg.n8n, job_id, fetchImpl);
   if (fresh.kind !== "ok") return { kind: "unavailable", message: fresh.kind === "not_found" ? "The workflow has no record of this job." : fresh.message };
-  const raw = fresh.body as { draft?: { subject?: unknown; body?: unknown } };
+  const raw = fresh.body as { draft?: { subject?: unknown; body?: unknown }; employee_drafts?: unknown };
   const view = normalizeJob(fresh.body, "LIVE");
   if (view.version !== input.version) return { kind: "stale", message: `This case is now at version ${view.version ?? "unknown"}. Reload and review the current version.` };
-  const subject = typeof raw.draft?.subject === "string" ? raw.draft.subject : null;
-  const body = typeof raw.draft?.body === "string" ? raw.draft.body : null;
+  // Team summary (employee null) or one action owner's draft — always the workflow's stored text, byte-exact.
+  const employee = input.employee?.trim() || null;
+  let src: { subject?: unknown; body?: unknown } | undefined = raw.draft;
+  if (employee) {
+    const list = Array.isArray(raw.employee_drafts) ? (raw.employee_drafts as { employee?: unknown; subject?: unknown; body?: unknown }[]) : [];
+    src = list.find((d) => typeof d?.employee === "string" && d.employee.toLowerCase() === employee.toLowerCase());
+    if (!src) return { kind: "invalid", message: `The reviewed version has no action items for ${employee.slice(0, 60)}.` };
+  }
+  const subject = typeof src?.subject === "string" ? src.subject : null;
+  const body = typeof src?.body === "string" ? src.body : null;
   if (!subject || !body) return { kind: "invalid", message: "This case has no reviewed draft to send." };
   const outcome = await dispatchToN8n(
     cfg.n8n,
-    { job_id, version: input.version, recipients, subject, body, dispatch_key: dispatchKey(job_id, input.version, recipients, subject, body), confirm: true },
+    { job_id, version: input.version, employee, recipients, subject, body, dispatch_key: dispatchKey(job_id, input.version, recipients, subject, body), confirm: true },
     fetchImpl,
   );
   return { kind: "outcome", outcome };

@@ -27,9 +27,10 @@ export function RoutePanel({ job }: { job: JobView }) {
         <span className="small">{r.why[0]}</span>
       </div>
       <div className="row" style={{ gap: 8 }}>
-        {r.route.id === "APPROVAL" && job.mode === "LIVE" && (
-          <Link href={`/cases/${job.job_id}/send`} className="btn sm primary">
-            Review &amp; Send
+        {(job.employee_drafts.length > 0 || job.draft) && (
+          <Link href={`/cases/${job.job_id}/send`} className={`btn sm${r.route.id === "APPROVAL" && job.mode === "LIVE" ? " primary" : ""}`}>
+            {r.route.id === "APPROVAL" && job.mode === "LIVE" ? "Review & Send" : "View drafts"}
+            {job.employee_drafts.length > 0 && ` (${job.employee_drafts.length})`}
           </Link>
         )}
         <button type="button" className="btn sm" onClick={() => setOpen(true)}>

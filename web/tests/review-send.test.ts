@@ -24,6 +24,7 @@ const statusBody = (version = 1) => ({
   operational_readiness: { status: "READY", reasons: [] },
   draft: { subject: "Project Atlas — follow-up ", body: "Hi team,\n\n• Maya — send the agenda by 3 November 2026 (1 h)\n" },
   routing: { route_id: "APPROVAL", why: ["passed"] },
+  employee_drafts: [{ employee: "Maya Chen", subject: "Your action items: Atlas", body: "Hi Maya,\n\n- Send the agenda (due: Tuesday), estimated 1 h\n", action_ids: ["A1"], action_count: 1 }],
 });
 
 const load = async () => {
@@ -48,7 +49,7 @@ function n8n(dispatch: { status: number; body?: unknown } | "throw", status = st
   });
   return { fn: fn as unknown as typeof fetch, calls };
 }
-const req = (over: Partial<{ recipients: string[]; version: number; confirm: boolean }> = {}) => ({ recipients: ["Maya@ASU.edu"], version: 1, confirm: true, ...over });
+const req = (over: Partial<{ recipients: string[]; version: number; confirm: boolean; employee: string | null }> = {}) => ({ recipients: ["Maya@ASU.edu"], version: 1, confirm: true, ...over });
 
 beforeEach(() => {
   saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
@@ -115,6 +116,28 @@ describe("requestDispatch sends the exact reviewed draft once", () => {
     expect(service.dispatchKey(JOB, 1, ["b@asu.edu", "a@asu.edu"], "S", "B")).toBe(k);
     for (const other of [service.dispatchKey(JOB, 1, ["a@asu.edu"], "S", "B"), service.dispatchKey(JOB, 2, ["a@asu.edu", "b@asu.edu"], "S", "B"), service.dispatchKey(JOB, 1, ["a@asu.edu", "b@asu.edu"], "S", "B2")])
       expect(other).not.toBe(k);
+  });
+});
+
+describe("per-employee drafts", () => {
+  it("sends the named employee's stored draft byte-exact, never the team draft", async () => {
+    const { service } = await liveWithJob();
+    const m = n8n({ status: 200, body: { dispatch_status: "SEND_DISABLED" } });
+    await service.requestDispatch("owner", JOB, req({ employee: "maya chen", recipients: ["maya@gmail.com"] }), m.fn);
+    const b = m.calls.find((c) => c.method === "POST")!.body as { employee: string; subject: string; body: string };
+    expect(b).toMatchObject({ employee: "maya chen", subject: "Your action items: Atlas", body: statusBody().employee_drafts[0]!.body });
+  });
+  it("an employee with no reviewed items is refused before any POST", async () => {
+    const { service } = await liveWithJob();
+    const m = n8n({ status: 200 });
+    expect((await service.requestDispatch("owner", JOB, req({ employee: "Mallory" }), m.fn)).kind).toBe("invalid");
+    expect(m.calls.map((c) => c.method)).toEqual(["GET"]);
+  });
+  it("employee null sends the team summary draft", async () => {
+    const { service } = await liveWithJob();
+    const m = n8n({ status: 200, body: { dispatch_status: "SEND_DISABLED" } });
+    await service.requestDispatch("owner", JOB, req({ employee: null }), m.fn);
+    expect((m.calls.find((c) => c.method === "POST")!.body as { employee: unknown; subject: string }).employee).toBeNull();
   });
 });
 

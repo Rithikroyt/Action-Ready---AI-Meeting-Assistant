@@ -14,11 +14,18 @@ function run(file: string, input: J[], nodes: Record<string, J[]> = {}, patch?: 
 
 const JOB = "8c0a7199-ec8a-461d-9849-064eda2de1b2";
 const KEY = "a".repeat(64);
-const SETTINGS = { send_enabled: false, allowed_recipient_domains: ["asu.edu"], allowed_recipient_addresses: ["owner.test@example.com"], max_recipients: 10 };
+const SETTINGS = { send_enabled: false, allowed_recipient_domains: ["asu.edu"], allowed_recipient_addresses: ["owner.test@example.com"], max_recipients: 10, daily_send_cap: 25 };
 const goodBody = (over: J = {}) => ({ job_id: JOB, version: 1, recipients: ["Maya@ASU.edu", "owner.test@example.com", "maya@asu.edu"], subject: "Project Atlas — follow-up", body: "Hi team, …", dispatch_key: KEY, confirm: true, ...over });
 const validate = (body: unknown, settings = SETTINGS) => run("2-validate.js", [{ settings, body }])[0]!;
 
 describe("Validate Dispatch Request", () => {
+  it("with allow_any_recipient, any valid address is accepted (it becomes part of what is approved)", () => {
+    expect(validate(goodBody({ recipients: ["someone@gmail.com"] }), { ...SETTINGS, allow_any_recipient: true } as typeof SETTINGS)).toMatchObject({ valid: true, recipients: ["someone@gmail.com"], employee: null });
+  });
+  it("the shipped settings node keeps sending OFF, allows any recipient and caps daily sends", () => {
+    const shipped = run("1-settings.js", [{ body: {} }])[0]!.settings as Record<string, unknown>;
+    expect(shipped).toMatchObject({ send_enabled: false, allow_any_recipient: true, daily_send_cap: 25, max_recipients: 10 });
+  });
   it("accepts a confirmed, allowlisted request and normalizes recipients", () => {
     expect(validate(goodBody())).toMatchObject({ valid: true, recipients: ["maya@asu.edu", "owner.test@example.com"], version: 1 });
   });
@@ -32,6 +39,8 @@ describe("Validate Dispatch Request", () => {
     [goodBody({ recipients: [] }), "NO_RECIPIENTS"],
     [goodBody({ job_id: "nope" }), "INVALID_JOB_ID"],
     [goodBody({ dispatch_key: "short" }), "INVALID_DISPATCH_KEY"],
+    [goodBody({ employee: 42 }), "INVALID_EMPLOYEE"],
+    [goodBody({ employee: "x".repeat(121) }), "INVALID_EMPLOYEE"],
   ])("refuses %#", (body, codeExpected) => {
     const r = validate(body);
     expect(r.valid).toBe(false);
@@ -121,5 +130,40 @@ describe("Capture Send Result + Build Dispatch Response (honest outcomes)", () =
   });
   it("reports when the outcome could not be saved", () => {
     expect(respond(capture({ id: "x" }), [{ error: "write failed" }]).response_body).toMatchObject({ record_saved: false });
+  });
+});
+
+const CAND = { meeting_title: "Project Atlas sync", actions: [{ id: "A1", task: "Send the agenda", owner: "Maya Chen", due_text: "Tuesday", estimated_hours: 1 }, { id: "A2", task: "Fix login", owner: "Dev Patel", due_text: "Friday", estimated_hours: 3 }] };
+const SHARED = readFileSync(fileURLToPath(new URL("../../n8n/shared/employee-drafts.js", import.meta.url)), "utf8");
+const drafts = (new Function(SHARED + "; return employeeDrafts;")() as (c: unknown, id: string, v: number) => { employee: string; subject: string; body: string }[])(CAND, "AR2-900", 1);
+describe("Authorize Dispatch: per-employee drafts and the daily cap", () => {
+  const ON = { ...SETTINGS, send_enabled: true, daily_send_cap: 25 };
+  const empAuth = (over: J = {}, extra: Parameters<typeof nodesFor>[0] = {}) => {
+    const d = drafts[0]!;
+    const n = nodesFor({ settings: ON, versions: [{ case_id: "AR2-900", version: 1, gate: "PASS", evaluated_candidate_json: JSON.stringify(CAND) }], ...extra });
+    n["Validate Dispatch Request"] = [{ ...validate(goodBody({ employee: "maya chen", subject: d.subject, body: d.body, ...over })), settings: extra.settings ?? ON }];
+    return run("3-authorize.js", [{}], n)[0]!;
+  };
+  it("sends one employee's draft when the text matches the stored reviewed version", () => {
+    expect(empAuth()).toMatchObject({ action: "SEND", employee: "maya chen", subject: drafts[0]!.subject, body: drafts[0]!.body });
+  });
+  it("refuses an employee who has no reviewed action items", () => {
+    expect(errCode(empAuth({ employee: "Mallory" }))).toBe("EMPLOYEE_NOT_IN_DRAFT");
+  });
+  it("refuses a per-employee message edited in the browser", () => {
+    expect(errCode(empAuth({ body: drafts[0]!.body + " P.S. wire money" }))).toBe("CONTENT_CHANGED");
+  });
+  it("refuses sending one employee's text under another employee's name", () => {
+    expect(errCode(empAuth({ employee: "Dev Patel" }))).toBe("CONTENT_CHANGED");
+  });
+  it("enforces the daily send cap across today's SENT / SENDING / UNCERTAIN dispatches", () => {
+    const today = new Date().toISOString();
+    const existing = [{ dispatch_key: "b".repeat(64), status: "SENT", recipient_count: 24, approved_at: today, id: 1 }];
+    const r = empAuth({}, { settings: ON, existing });
+    expect(errCode(r)).toBe("DAILY_LIMIT_REACHED");
+    expect(r.http_status).toBe(429);
+    const yesterday = new Date(Date.now() - 86400000).toISOString();
+    expect(empAuth({}, { settings: ON, existing: [{ ...existing[0]!, approved_at: yesterday }] }).action).toBe("SEND");
+    expect(empAuth({}, { settings: ON, existing: [{ ...existing[0]!, status: "FAILED" }] }).action).toBe("SEND");
   });
 });
