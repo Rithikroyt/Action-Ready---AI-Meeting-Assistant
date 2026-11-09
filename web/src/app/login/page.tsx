@@ -60,6 +60,16 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             </div>
           )}
 
+          {cfg.mode === "live" && !cfg.n8n && (
+            <div className="banner error" role="alert">
+              <IconAlert />
+              <span>
+                <strong>Live mode is on, but the server is not connected to n8n.</strong> Missing or invalid setting(s): {cfg.problems.filter((p) => p.startsWith("N8N_")).join("; ") || cfg.problems.join("; ")}. Fix them in the host&apos;s
+                environment variables (Production) and redeploy.
+              </span>
+            </div>
+          )}
+
           {cfg.google && (
             <a className="btn google-btn" href={`/api/auth/signin/google?next=${encodeURIComponent(next)}`}>
               <GoogleMark /> Continue with Google
