@@ -143,8 +143,16 @@ Use GPI (granti-rouge.vercel.app) as a reference for narrative hierarchy and evi
 
 | Stage | Status |
 |---|---|
-| A | **Implemented locally** on branch `feat/week4-coordinator`. Not deployed to n8n. |
-| B–E | Not started. They need owner setup (see "Blockers" below). |
+| A | **Done and live.** The n8n Coordinator was published as version `2a6ac61a` on 2026-11-09, and the website queue and route panel are deployed. |
+| D | **Built, with sending switched off.** The guarded `actionready/v1/dispatch` branch, the `AR_Dispatches` table, and the website's Review & Send page and API are in place. The n8n branch is an unpublished draft (`9d7d2661`). |
+| B, C, E | Not started. C needs a Google Sheets credential in n8n. B and the Vercel live mode are below. |
+
+**Before the first real send:**
+1. Publish the n8n draft.
+2. Set the allowed recipients in `Week 4 Dispatch Settings`, then set `send_enabled: true`.
+3. Run one live analysis of a genuinely feasible (READY) meeting, then send exactly one message to an inbox the owner controls.
+
+**One limit:** on Vercel, live-mode ownership still relies on the app's temporary job registry. Until Stage B lists cases from n8n, Review & Send for live cases is dependable only when the app runs locally or on a host with a persistent disk.
 
 **What Stage A includes:**
 - **Routing rules:** `web/src/lib/coordinator.ts` is the reference implementation and executable spec for the n8n Coordinator node. `web/tests/coordinator.test.ts` covers every synthetic scenario, the recorded live shapes (AR2-821, AR2-848, AR2-837 and AR2-832), and an exhaustive check that only a passing review with a READY result reaches the Approver.

@@ -90,3 +90,65 @@ export async function fetchJobFromN8n(t: N8nTarget, job_id: string, fetchImpl: t
     return { kind: "unavailable", message: "The status endpoint returned invalid JSON." };
   }
 }
+
+// ---------- Week 4: Review & Send ----------
+export interface DispatchPayload {
+  job_id: string;
+  version: number;
+  recipients: string[];
+  subject: string;
+  body: string;
+  dispatch_key: string;
+  confirm: true;
+}
+
+export type DispatchState = "SENT" | "SEND_DISABLED" | "REFUSED" | "FAILED" | "UNCERTAIN" | "SENDING" | "UNKNOWN";
+export interface DispatchOutcome {
+  state: DispatchState;
+  http: number | null;
+  code: string | null;
+  message: string;
+  gmail_message_id: string | null;
+  replay: boolean;
+}
+
+const DISPATCH_TIMEOUT_MS = 30_000;
+const DISPATCH_STATES: DispatchState[] = ["SENT", "SEND_DISABLED", "REFUSED", "FAILED", "UNCERTAIN", "SENDING"];
+
+/** POST the approved message to the guarded n8n dispatch webhook. Never retries; a timeout is UNCERTAIN, not failed. */
+export async function dispatchToN8n(t: N8nTarget, payload: DispatchPayload, fetchImpl: typeof fetch = fetch): Promise<DispatchOutcome> {
+  let res: Response;
+  try {
+    res = await fetchImpl(`${t.base}/actionready/v1/dispatch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json", [t.headerName]: t.secret },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(DISPATCH_TIMEOUT_MS),
+    });
+  } catch {
+    return { state: "UNCERTAIN", http: null, code: "NO_RESPONSE", message: "The workflow did not answer. The message may or may not have been sent — check the Sent folder before approving again.", gmail_message_id: null, replay: false };
+  }
+  if (res.status === 404) return { state: "REFUSED", http: 404, code: "ENDPOINT_NOT_PUBLISHED", message: "The dispatch endpoint is not published in n8n yet. Nothing was sent.", gmail_message_id: null, replay: false };
+  if (res.status === 401 || res.status === 403) {
+    const b = await res.json().catch(() => null);
+    if (!b?.dispatch_status) return { state: "REFUSED", http: res.status, code: "UNAUTHORIZED", message: "The workflow refused this app's credentials. Nothing was sent.", gmail_message_id: null, replay: false };
+    return outcomeFrom(res.status, b);
+  }
+  return outcomeFrom(res.status, await res.json().catch(() => null));
+}
+
+function outcomeFrom(http: number, b: { dispatch_status?: unknown; error?: { code?: unknown; message?: unknown }; note?: unknown; gmail_message_id?: unknown; replay?: unknown } | null): DispatchOutcome {
+  const raw = typeof b?.dispatch_status === "string" ? (b.dispatch_status as DispatchState) : "UNKNOWN";
+  const state: DispatchState = DISPATCH_STATES.includes(raw) ? raw : http === 504 ? "UNCERTAIN" : "UNKNOWN";
+  const msg = typeof b?.error?.message === "string" ? b.error.message : typeof b?.note === "string" ? b.note : `The workflow returned HTTP ${http}.`;
+  return {
+    state,
+    http,
+    code: typeof b?.error?.code === "string" ? b.error.code.slice(0, 60) : null,
+    message: msg.slice(0, 400),
+    gmail_message_id: typeof b?.gmail_message_id === "string" && b.gmail_message_id ? b.gmail_message_id.slice(0, 120) : null,
+    replay: b?.replay === true,
+  };
+}

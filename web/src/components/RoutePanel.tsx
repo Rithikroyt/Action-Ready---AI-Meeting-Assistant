@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import type { JobView } from "@/lib/contract";
 import { routingFor } from "@/lib/coordinator";
 import { Drawer } from "./Drawer";
@@ -25,9 +26,16 @@ export function RoutePanel({ job }: { job: JobView }) {
         </strong>
         <span className="small">{r.why[0]}</span>
       </div>
-      <button type="button" className="btn sm" onClick={() => setOpen(true)}>
-        <IconHelp width={14} height={14} /> Why this route?
-      </button>
+      <div className="row" style={{ gap: 8 }}>
+        {r.route.id === "APPROVAL" && job.mode === "LIVE" && (
+          <Link href={`/cases/${job.job_id}/send`} className="btn sm primary">
+            Review &amp; Send
+          </Link>
+        )}
+        <button type="button" className="btn sm" onClick={() => setOpen(true)}>
+          <IconHelp width={14} height={14} /> Why this route?
+        </button>
+      </div>
       <Drawer open={open} onClose={() => setOpen(false)} eyebrow="Coordinator" title={`Routed to: ${r.route.label}`}>
         <div className="route-detail">
           <section>

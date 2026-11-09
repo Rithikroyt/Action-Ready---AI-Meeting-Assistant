@@ -2,7 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { isFinal, normalizeJob, type JobView, type Submission } from "./contract";
 import { getConfig } from "./env";
-import { fetchJobFromN8n, submitToN8n } from "./n8n";
+import { dispatchToN8n, fetchJobFromN8n, submitToN8n, type DispatchOutcome } from "./n8n";
 import { buildDemoBody, demoScenarioFor, rebuildDemoBody } from "./demo";
 import { addJob, findByRequest, findJob, listJobs, registryWritable, updateSnapshot, type RegistryEntry } from "./registry";
 
@@ -137,4 +137,48 @@ export async function overview(owner: string, limit = 15, browserDemoIds: string
     }),
   );
   return [...fromRegistry, ...extra].sort((a, b) => b.submitted_at.localeCompare(a.submitted_at)).slice(0, limit);
+}
+
+// ---------- Week 4: Review & Send ----------
+const EMAIL_RE = /^[a-z0-9._%+-]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/;
+export const normalizeRecipients = (list: string[]) => [...new Set(list.map((r) => String(r).trim().toLowerCase()).filter(Boolean))].sort();
+export const validRecipient = (r: string) => EMAIL_RE.test(r) && r.length <= 254;
+
+/** One key per (job, version, recipients, exact message): approving the same thing twice can never send twice. */
+export const dispatchKey = (job_id: string, version: number, recipients: string[], subject: string, body: string) =>
+  createHash("sha256").update(JSON.stringify([job_id, version, normalizeRecipients(recipients), subject, body])).digest("hex");
+
+export type DispatchRequestResult =
+  | { kind: "outcome"; outcome: DispatchOutcome }
+  | { kind: "invalid" | "not_found" | "unavailable" | "stale"; message: string };
+
+/**
+ * Prepare and send a reviewed message. The draft is re-read FRESH from n8n (never from a cache) so approval always
+ * applies to the current version, and the exact stored subject/body are used — the browser never supplies the text.
+ */
+export async function requestDispatch(owner: string, job_id: string, input: { recipients: string[]; version: number; confirm: boolean }, fetchImpl: typeof fetch = fetch): Promise<DispatchRequestResult> {
+  const cfg = getConfig();
+  if (cfg.mode !== "live") return { kind: "unavailable", message: "Sending is only available for live workflow cases, never for synthetic demo cases." };
+  if (!cfg.n8n) return { kind: "unavailable", message: "Live mode is not configured on the server." };
+  if (input.confirm !== true) return { kind: "invalid", message: "Confirm the exact message and recipients before sending." };
+  const recipients = normalizeRecipients(input.recipients);
+  if (!recipients.length) return { kind: "invalid", message: "Add at least one recipient." };
+  if (recipients.length > 10) return { kind: "invalid", message: "At most 10 recipients per message." };
+  if (!recipients.every(validRecipient)) return { kind: "invalid", message: "Each recipient must be a single plain email address." };
+  const entry = await findJob(owner, job_id).catch(() => null);
+  if (!entry || entry.mode !== "LIVE") return { kind: "not_found" as const, message: "No live case with this ID for this account." };
+  const fresh = await fetchJobFromN8n(cfg.n8n, job_id, fetchImpl);
+  if (fresh.kind !== "ok") return { kind: "unavailable", message: fresh.kind === "not_found" ? "The workflow has no record of this job." : fresh.message };
+  const raw = fresh.body as { draft?: { subject?: unknown; body?: unknown } };
+  const view = normalizeJob(fresh.body, "LIVE");
+  if (view.version !== input.version) return { kind: "stale", message: `This case is now at version ${view.version ?? "unknown"}. Reload and review the current version.` };
+  const subject = typeof raw.draft?.subject === "string" ? raw.draft.subject : null;
+  const body = typeof raw.draft?.body === "string" ? raw.draft.body : null;
+  if (!subject || !body) return { kind: "invalid", message: "This case has no reviewed draft to send." };
+  const outcome = await dispatchToN8n(
+    cfg.n8n,
+    { job_id, version: input.version, recipients, subject, body, dispatch_key: dispatchKey(job_id, input.version, recipients, subject, body), confirm: true },
+    fetchImpl,
+  );
+  return { kind: "outcome", outcome };
 }

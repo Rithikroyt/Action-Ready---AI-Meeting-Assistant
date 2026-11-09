@@ -1935,3 +1935,80 @@ dialog.drawer::backdrop {
     justify-self: start;
   }
 }
+
+/* ---------- Week 4: Review & Send ---------- */
+.send-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.recip-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.recip-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 3px 10px;
+  border-radius: 999px;
+  background: var(--lavender-soft);
+  border: 1px solid #ddd2ff;
+  font-size: 12.5px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.mail-head {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 0;
+  font-size: 13.5px;
+}
+.mail-head dt {
+  color: var(--text-3);
+}
+.mail-head dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.mail-body {
+  margin: 0;
+  padding: 16px;
+  border-radius: 14px;
+  background: #fffcfa;
+  border: 1px solid var(--border);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.consent {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--ready-bg);
+  border: 1px solid var(--ready-line);
+  font-weight: 560;
+  cursor: pointer;
+}
+.consent input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+@media (max-width: 900px) {
+  .send-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
