@@ -14,13 +14,13 @@ function run(file: string, input: J[], nodes: Record<string, J[]> = {}, patch?: 
 
 const JOB = "8c0a7199-ec8a-461d-9849-064eda2de1b2";
 const KEY = "a".repeat(64);
-const SETTINGS = { send_enabled: false, allowed_recipient_domains: ["asu.edu"], allowed_recipient_addresses: ["owner.test@gmail.com"], max_recipients: 10 };
-const goodBody = (over: J = {}) => ({ job_id: JOB, version: 1, recipients: ["Maya@ASU.edu", "owner.test@gmail.com", "maya@asu.edu"], subject: "Project Atlas — follow-up", body: "Hi team, …", dispatch_key: KEY, confirm: true, ...over });
+const SETTINGS = { send_enabled: false, allowed_recipient_domains: ["asu.edu"], allowed_recipient_addresses: ["owner.test@example.com"], max_recipients: 10 };
+const goodBody = (over: J = {}) => ({ job_id: JOB, version: 1, recipients: ["Maya@ASU.edu", "owner.test@example.com", "maya@asu.edu"], subject: "Project Atlas — follow-up", body: "Hi team, …", dispatch_key: KEY, confirm: true, ...over });
 const validate = (body: unknown, settings = SETTINGS) => run("2-validate.js", [{ settings, body }])[0]!;
 
 describe("Validate Dispatch Request", () => {
   it("accepts a confirmed, allowlisted request and normalizes recipients", () => {
-    expect(validate(goodBody())).toMatchObject({ valid: true, recipients: ["maya@asu.edu", "owner.test@gmail.com"], version: 1 });
+    expect(validate(goodBody())).toMatchObject({ valid: true, recipients: ["maya@asu.edu", "owner.test@example.com"], version: 1 });
   });
   it.each([
     [{ ...goodBody(), approved: true }, "UNKNOWN_FIELDS"],
@@ -62,7 +62,7 @@ describe("Authorize Dispatch (server-side rules)", () => {
   });
   it("with sending switched on: authorizes exactly one SEND for the current version", () => {
     const r = authorize({ settings: { ...SETTINGS, send_enabled: true } });
-    expect(r).toMatchObject({ action: "SEND", version: 1, recipients: "maya@asu.edu, owner.test@gmail.com", recipient_count: 2, dispatch_key: KEY });
+    expect(r).toMatchObject({ action: "SEND", version: 1, recipients: "maya@asu.edu, owner.test@example.com", recipient_count: 2, dispatch_key: KEY });
   });
   it("a repeated dispatch_key replays the recorded outcome and never sends again", () => {
     const r = authorize({ settings: { ...SETTINGS, send_enabled: true }, existing: [{ dispatch_key: KEY, status: "SENT", gmail_message_id: "m1", recipient_count: 2, id: 4 }] });
