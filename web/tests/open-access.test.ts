@@ -20,7 +20,7 @@ describe("open access", () => {
     const cfg = getConfig();
     expect(cfg.openAccess).toBe(true);
     expect(cfg.problems).not.toContain("APP_PASSWORD (min 12 characters)");
-    expect(await getSession()).toEqual({ sub: "owner" });
+    expect(await getSession()).toMatchObject({ sub: "owner", kind: "guest", canSend: false });
   });
 
   it("is ignored in live mode, which still requires sign-in", () => {
@@ -28,7 +28,7 @@ describe("open access", () => {
     const cfg = getConfig();
     expect(cfg.openAccess).toBe(false);
     expect(cfg.problems).toContain("APP_PASSWORD (min 12 characters)");
-    expect(cfg.problems).toContain("SESSION_SECRET (min 32 characters)");
+    expect(cfg.problems).toContain("SESSION_SECRET or AUTH_SECRET (min 32 characters)");
   });
 
   it("is off unless set to exactly 'true'", () => {

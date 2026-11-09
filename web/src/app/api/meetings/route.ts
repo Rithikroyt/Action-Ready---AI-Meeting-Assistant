@@ -1,7 +1,6 @@
 import type { NextRequest } from "next/server";
 import { submissionSchema } from "@/lib/contract";
-import { guardApi, json } from "@/lib/guard";
-import { OWNER } from "@/lib/session";
+import { apiSession, guardApi, json } from "@/lib/guard";
 import { submitMeeting } from "@/lib/service";
 import { addToDemoCookie, DEMO_CASES_COOKIE, isDemoJobId } from "@/lib/demo";
 
@@ -31,7 +30,7 @@ export async function POST(req: NextRequest) {
     return json({ error: { code: "VALIDATION", message: "Please fix the highlighted fields.", fields } }, 422);
   }
 
-  const out = await submitMeeting(OWNER, parsed.data);
+  const out = await submitMeeting((await apiSession()).sub, parsed.data);
   switch (out.kind) {
     case "accepted": {
       const res = json({ job_id: out.job_id, execution_status: "ACCEPTED", reused: out.reused, schema_version: "1" }, out.reused ? 200 : 202);

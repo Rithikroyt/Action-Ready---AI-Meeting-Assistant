@@ -10,7 +10,12 @@ export interface AppConfig {
   projectId: string;
   projectLabel: string;
   appPassword: string | null;
+  /** Signs session cookies: SESSION_SECRET, or AUTH_SECRET when only Google sign-in is configured. */
   sessionSecret: string | null;
+  /** Google sign-in (identity only — never Gmail access). Null when AUTH_GOOGLE_ID/SECRET are not set. */
+  google: { clientId: string; clientSecret: string } | null;
+  /** Lower-case emails allowed to approve and send (ACTIONREADY_APPROVERS). Signing in alone never allows sending. */
+  approvers: string[];
   n8n: { base: string; headerName: string; secret: string; statusPath: string } | null;
   /** Names of missing/invalid settings — never their values. */
   problems: string[];
@@ -30,10 +35,17 @@ export function getConfig(): AppConfig {
   // Live mode can start paid workflow runs, so an open (password-free) site is never allowed there.
   const openAccess = mode === "demo" && e.ACTIONREADY_OPEN_ACCESS === "true";
 
+  const gid = (e.AUTH_GOOGLE_ID ?? "").trim();
+  const gsecret = (e.AUTH_GOOGLE_SECRET ?? "").trim();
+  const google = /^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$/.test(gid) && gsecret.length >= 16 ? { clientId: gid, clientSecret: gsecret } : null;
+  if ((gid || gsecret) && !google) problems.push("AUTH_GOOGLE_ID / AUTH_GOOGLE_SECRET (Google OAuth web client)");
+  const approvers = [...new Set((e.ACTIONREADY_APPROVERS ?? "").split(",").map((x) => x.trim().toLowerCase()).filter((x) => /^[^\s@,]+@[^\s@,]+\.[a-z]{2,}$/.test(x)))];
+
   const appPassword = e.APP_PASSWORD && e.APP_PASSWORD.length >= 12 ? e.APP_PASSWORD : null;
-  if (!appPassword && !openAccess) problems.push("APP_PASSWORD (min 12 characters)");
-  const sessionSecret = e.SESSION_SECRET && e.SESSION_SECRET.length >= 32 ? e.SESSION_SECRET : null;
-  if (!sessionSecret && !openAccess) problems.push("SESSION_SECRET (min 32 characters)");
+  if (!appPassword && !openAccess && !google) problems.push("APP_PASSWORD (min 12 characters)");
+  const rawSecret = e.SESSION_SECRET && e.SESSION_SECRET.length >= 32 ? e.SESSION_SECRET : e.AUTH_SECRET && e.AUTH_SECRET.length >= 32 ? e.AUTH_SECRET : null;
+  const sessionSecret = rawSecret;
+  if (!sessionSecret && (!openAccess || google)) problems.push("SESSION_SECRET or AUTH_SECRET (min 32 characters)");
 
   let n8n: AppConfig["n8n"] = null;
   if (mode === "live") {
@@ -63,6 +75,8 @@ export function getConfig(): AppConfig {
     projectLabel: e.ACTIONREADY_PROJECT_LABEL || "Demo Atlas (synthetic)",
     appPassword,
     sessionSecret,
+    google: sessionSecret ? google : null,
+    approvers,
     n8n,
     problems,
   };

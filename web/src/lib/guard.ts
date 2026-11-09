@@ -1,6 +1,6 @@
 import "server-only";
 import { NextResponse } from "next/server";
-import { getSession } from "./session";
+import { getSession, type Session } from "./session";
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
@@ -15,4 +15,11 @@ export async function guardApi(req: Request): Promise<NextResponse | null> {
   }
   if (!(await getSession())) return json({ error: { code: "UNAUTHENTICATED", message: "Sign in again." } }, 401);
   return null;
+}
+
+/** The session of a request that already passed guardApi. */
+export async function apiSession(): Promise<Session> {
+  const s = await getSession();
+  if (!s) throw new Error("apiSession called without a session");
+  return s;
 }

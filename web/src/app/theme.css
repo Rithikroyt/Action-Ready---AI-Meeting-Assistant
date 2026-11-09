@@ -2107,3 +2107,66 @@ dialog.drawer::backdrop {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ---------- Week 4: Google sign-in ---------- */
+.google-btn {
+  justify-content: center;
+  gap: 10px;
+  min-height: 44px;
+  font-weight: 620;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+}
+.google-btn:hover {
+  background: var(--surface-2);
+}
+.or-rule {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+.or-rule::before,
+.or-rule::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 260px;
+}
+.user-avatar {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: #fff;
+  background: var(--grad-brand);
+}
+.user-text {
+  display: grid;
+  min-width: 0;
+  line-height: 1.2;
+}
+.user-text > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tiny {
+  font-size: 11.5px;
+}
+@media (max-width: 640px) {
+  .user-text {
+    display: none;
+  }
+}

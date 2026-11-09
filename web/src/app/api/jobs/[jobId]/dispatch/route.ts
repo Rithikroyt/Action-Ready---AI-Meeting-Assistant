@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { JOB_ID_RE } from "@/lib/contract";
-import { guardApi, json } from "@/lib/guard";
-import { OWNER } from "@/lib/session";
+import { apiSession, guardApi, json } from "@/lib/guard";
 import { requestDispatch } from "@/lib/service";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +32,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ jobId: string 
   }
   if (!parsed.success) return json({ error: { code: "VALIDATION", message: "Send needs recipients, the reviewed version and explicit confirmation." } }, 422);
 
-  const res = await requestDispatch(OWNER, jobId, parsed.data);
+  const session = await apiSession();
+  // Signing in is not permission to send: only the passphrase owner or a listed approver may.
+  if (!session.canSend)
+    return json({ error: { code: "NOT_AN_APPROVER", message: "Your account is not on the organizer's approver list. Nothing was sent." } }, 403);
+  const res = await requestDispatch(session.sub, jobId, parsed.data);
   switch (res.kind) {
     case "outcome":
       return json({ dispatch: res.outcome });

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { JOB_ID_RE, type JobView } from "@/lib/contract";
-import { requireSession, OWNER } from "@/lib/session";
+import { requireSession } from "@/lib/session";
 import { getJobView } from "@/lib/service";
 import { routingFor } from "@/lib/coordinator";
 import { ReviewSend } from "./ReviewSend";
@@ -24,12 +24,18 @@ function blocker(job: JobView): string | null {
 }
 
 export default async function SendPage({ params }: { params: Promise<{ jobId: string }> }) {
-  await requireSession();
+  const session = await requireSession();
   const { jobId } = await params;
   if (!JOB_ID_RE.test(jobId)) notFound();
-  const res = await getJobView(OWNER, jobId);
+  const res = await getJobView(session.sub, jobId);
   const job = res.kind === "ok" ? res.view : null;
-  const why = job ? blocker(job) : res.kind === "unavailable" ? res.message : "No case with this ID for this account.";
+  const notApprover =
+    session.kind === "guest"
+      ? "Sign in with Google to send. Signing in identifies you; only approvers named by the organizer can send."
+      : !session.canSend
+        ? "You are signed in, but your account is not on the organizer's approver list (ACTIONREADY_APPROVERS), so you can review drafts but not send them."
+        : null;
+  const why = job ? (blocker(job) ?? notApprover) : res.kind === "unavailable" ? res.message : "No case with this ID for this account.";
   const hasDrafts = !!job && (job.employee_drafts.length > 0 || !!job.draft);
   return (
     <AppShell>

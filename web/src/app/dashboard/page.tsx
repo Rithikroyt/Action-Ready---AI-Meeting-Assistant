@@ -5,7 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { IconPlus, IconSparkle } from "@/components/Icons";
 import { ReadinessDonut } from "@/components/ReadinessDonut";
 import { AttentionQueue } from "@/components/AttentionQueue";
-import { requireSession, OWNER } from "@/lib/session";
+import { requireSession } from "@/lib/session";
 import { overview } from "@/lib/service";
 import { getConfig } from "@/lib/env";
 import { countBy, toCaseRow } from "@/lib/caseList";
@@ -16,10 +16,10 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Overview" };
 
 export default async function OverviewPage() {
-  await requireSession();
+  const session = await requireSession();
   const cfg = getConfig();
   const browserDemoIds = parseDemoCookie((await cookies()).get(DEMO_CASES_COOKIE)?.value);
-  const rows = (await overview(OWNER, 15, browserDemoIds)).map(toCaseRow);
+  const rows = (await overview(session.sub, 15, browserDemoIds)).map(toCaseRow);
   const counts = countBy(rows);
   const attention = counts.blocked + counts.unknown;
 
