@@ -251,8 +251,10 @@ export function ReviewSend({ job, blocked }: { job: JobView; blocked: string | n
                 Add
               </button>
             </div>
-            <span id={`${ids.input}-hint`} className={st.inputErr ? "err small" : "hint"}>
-              {st.inputErr ?? "Recipients are part of what you approve. Changing them needs a new approval."}
+            <span id={`${ids.input}-hint`} className={st.inputErr || blocked ? "err small" : "hint"}>
+              {blocked
+                ? `Locked — ${blocked} Open a case that passed AI review and is Ready to send.`
+                : (st.inputErr ?? "Recipients are part of what you approve. Changing them needs a new approval.")}
             </span>
             {st.recipients.length > 0 && (
               <ul className="recip-list">
