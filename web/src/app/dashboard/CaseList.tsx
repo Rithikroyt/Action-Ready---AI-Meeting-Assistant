@@ -9,6 +9,7 @@ import { RelTime } from "@/components/Time";
 import { ModeBadge } from "@/components/Badges";
 import { StatusBadge } from "@/components/StatusBadge";
 import { IconAlert, IconPlus, IconSearch } from "@/components/Icons";
+import { CountUp } from "@/components/CountUp";
 
 const lookup = <T extends Record<string, StatusDef>>(table: T, key: string, fallback: StatusDef): StatusDef => (table as Record<string, StatusDef>)[key] ?? fallback;
 
@@ -76,7 +77,7 @@ export function CaseList({ rows, disconnected, temporaryHistory = false }: { row
             aria-pressed={filter === s.f}
             onClick={() => setFilter(filter === s.f ? "ALL" : s.f)}
           >
-            <span className="n num">{s.n}</span>
+            <CountUp value={s.n} className="n num" />
             <span className="l">
               {s.tone && <span className="swatch dot" style={{ background: `var(--${s.tone})` }} aria-hidden />}
               {s.l}

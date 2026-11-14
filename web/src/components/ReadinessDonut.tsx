@@ -1,9 +1,9 @@
 // Readiness mix of the cases listed on this page, as an animated donut. Counts only; no score is implied.
 const SEGMENTS = [
-  { key: "ready", label: "Ready", color: "var(--lime)" },
-  { key: "blocked", label: "Blocked", color: "var(--crimson)" },
-  { key: "unknown", label: "Unknown", color: "#f5a623" },
-  { key: "other", label: "In progress / other", color: "var(--lavender)" },
+  { key: "ready", label: "Ready", color: "var(--ready)" },
+  { key: "blocked", label: "Blocked", color: "var(--blocked)" },
+  { key: "unknown", label: "Unknown", color: "var(--unknown)" },
+  { key: "other", label: "In progress / other", color: "var(--violet)" },
 ] as const;
 
 export function ReadinessDonut({ counts }: { counts: { cases: number; ready: number; blocked: number; unknown: number } }) {

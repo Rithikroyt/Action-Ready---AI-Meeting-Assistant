@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Modal } from "./Modal";
-import { IconArrowRight, IconDatabase, IconDoc, IconShield, IconSparkle, IconUsers } from "./Icons";
+import { IconArrowRight, IconDatabase, IconDoc, IconRoute, IconShield, IconSparkle, IconUsers } from "./Icons";
 
 const STEPS = [
   {
@@ -30,10 +30,16 @@ const STEPS = [
     body: "The reviewer looks up existing commitments and recorded capacity. Fixed rules then compute existing + new = projected load against capacity: Ready, Blocked or Unknown. Missing data is never treated as zero.",
   },
   {
+    icon: IconRoute,
+    tone: "lavender",
+    title: "The coordinator routes the case",
+    body: "Deterministic rules — not another AI — send every case to the one role that must act next: requester, technical reviewer, manager, data steward, approver or dispatcher, with the reason recorded.",
+  },
+  {
     icon: IconUsers,
     tone: "chartreuse",
-    title: "A human decides",
-    body: "You see the decision, the evidence and the numbers, and can simulate changes. Nothing is sent without a person approving it — and in this build, sending is switched off entirely.",
+    title: "A human approves, then it is sent and tracked",
+    body: "The approver reviews one email per employee and confirms the exact text and recipients. The server re-checks everything before Gmail is called, the same approval can never send twice, and approved tasks are published to the task tracker.",
   },
 ] as const;
 

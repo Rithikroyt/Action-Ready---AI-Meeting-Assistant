@@ -28,9 +28,11 @@ export default async function OverviewPage() {
       <section className="welcome">
         <div className="welcome-copy">
           <span className="eyebrow light">
-            <IconSparkle width={14} height={14} /> Commitment Control Center
+            <IconSparkle width={13} height={13} /> Commitment control center
           </span>
-          <h1>Overview</h1>
+          <h1>
+            Overview<span className="h1-dot">.</span>
+          </h1>
           <p>
             {rows.length === 0
               ? "No cases yet. Analyze a meeting to see its review, readiness and approval — always shown separately."
