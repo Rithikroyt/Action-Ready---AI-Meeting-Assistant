@@ -9,13 +9,13 @@ const W5 = {
   runningTimeoutMinutes: 15,
   minHeadlineN: 10,
   minPromptN: 3,
-}         ;
-const MODELS                                                    = [
+};
+const MODELS = [
   { id: "gemini-3.5-flash", label: "Gemini A", primary: true },
   { id: "gemini-3.5-flash-lite", label: "Gemini B", primary: false },
 ];
 /** Pulls the model's text out of the n8n Google Gemini node output (raw or simplified shapes). */
-const PROMPTS           = [
+const PROMPTS = [
   {
     prompt_id: "P01",
     segment: "OPEN",
@@ -106,15 +106,15 @@ const PROMPTS           = [
   },
 ];
 const ALLOWED_FIELDS = ["kind", "prompt_ids", "cold_prompt_ids", "contexts", "models", "reps", "seed", "requested_by_hash"];
-function validateExperiment(body         , existing                                               = [], nowMs = Date.now())                                                                                                                            {
-  const bad = (message        , code = "INVALID_EXPERIMENT", http = 400) => ({ ok: false         , http, code, message });
+function validateExperiment(body, existing = [], nowMs = Date.now()) {
+  const bad = (message, code = "INVALID_EXPERIMENT", http = 400) => ({ ok: false, http, code, message });
   if (!body || typeof body !== "object" || Array.isArray(body)) return bad("The request body must be a JSON object.");
-  const b = body                           ;
+  const b = body;
   const extra = Object.keys(b).filter((k) => !ALLOWED_FIELDS.includes(k));
   if (extra.length) return bad(`Unknown field(s): ${extra.join(", ")}. Only versioned corpus prompts can be run.`);
   const kind = b.kind;
   if (kind !== "CONTEXT" && kind !== "COLD" && kind !== "BOTH") return bad("kind must be CONTEXT, COLD or BOTH.");
-  const list = (v         ) => (Array.isArray(v) ? v.filter((x)              => typeof x === "string") : null);
+  const list = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === "string") : null);
   const promptIds = list(b.prompt_ids ?? []);
   const coldIds = list(b.cold_prompt_ids ?? []);
   const contexts = list(b.contexts ?? []);
@@ -138,12 +138,12 @@ function validateExperiment(body         , existing                             
   if (typeof seed !== "number" || !Number.isInteger(seed) || seed < 0 || seed > 2 ** 31) return bad("seed must be a non-negative whole number.");
   const rb = b.requested_by_hash;
   if (rb !== undefined && rb !== null && (typeof rb !== "string" || !/^[a-zA-Z0-9_]{1,64}$/.test(rb))) return bad("requested_by_hash must be a short opaque identifier.");
-  const uniq = (a          ) => [...new Set(a)];
-  const request                    = {
+  const uniq = (a) => [...new Set(a)];
+  const request = {
     kind,
     prompt_ids: wantsContext ? uniq(promptIds) : [],
     cold_prompt_ids: wantsCold ? uniq(coldIds) : [],
-    contexts: wantsContext ? (uniq(contexts)                             ) : [],
+    contexts: wantsContext ? (uniq(contexts)) : [],
     models: uniq(models),
     reps,
     seed,

@@ -9,8 +9,8 @@ const W5 = {
   runningTimeoutMinutes: 15,
   minHeadlineN: 10,
   minPromptN: 3,
-}         ;
-const CAPABILITIES                                   = [
+};
+const CAPABILITIES = [
   { key: "text_notes_input", label: "Accepts typed or pasted meeting notes" },
   { key: "txt_upload", label: "Accepts uploaded .txt notes" },
   { key: "audio_recording", label: "Records meeting audio" },
@@ -32,8 +32,8 @@ const CAPABILITIES                                   = [
   { key: "jira_slack_integration", label: "Jira / Slack integration" },
   { key: "calendar_scheduling", label: "Calendar scheduling" },
 ];
-const CAP_KEYS           = CAPABILITIES.map((c) => c.key);
-const PRODUCTS            = [
+const CAP_KEYS = CAPABILITIES.map((c) => c.key);
+const PRODUCTS = [
   {
     id: "actionready",
     name: "ActionReady",
@@ -95,7 +95,7 @@ const PRODUCTS            = [
     limitations: ["No independent AI review of extracted actions", "No email follow-up", "No evidence quotes from the notes"],
   },
 ];
-function dossierProfile(p         ) {
+function dossierProfile(p) {
   return {
     schema: W5.profileSchema,
     product: p.name,
@@ -109,7 +109,7 @@ function dossierProfile(p         ) {
     limitations: p.limitations,
   };
 }
-const PROMPTS           = [
+const PROMPTS = [
   {
     prompt_id: "P01",
     segment: "OPEN",
@@ -199,27 +199,27 @@ const PROMPTS           = [
     negative: true,
   },
 ];
-const DELEGATION_INSTRUCTIONS                         = {
+const DELEGATION_INSTRUCTIONS = {
   SHOW_OPTIONS: "List up to 3 suitable candidates ranked by fit. Mark at most one as RECOMMENDED; mark the others SHORTLISTED or MENTIONED.",
   COMPARE: "Compare the relevant candidates and rank them. Mark at most one as RECOMMENDED, suitable alternatives as SHORTLISTED, and unsuitable ones as REJECTED.",
   RECOMMEND_ONE: "Recommend exactly one candidate (status RECOMMENDED). You may list others as SHORTLISTED or REJECTED. If no candidate fits, set declined to true and explain why.",
 };
-function systemMessage(context         )         {
+function systemMessage(context) {
   return [
     "You help a software buyer compare tools for meeting follow-up.",
     context === "COLD" ? "Answer from your own knowledge of real products. Do not invent products; if you are unsure a product exists, say so in uncertainty." : "Use ONLY the product material provided in the request. Do not use outside knowledge about these products.",
     "Respond with a single JSON object that follows the contract exactly, and nothing else.",
     "Do not include scores, percentages, ratings or confidence numbers. You only recommend; you take no actions.",
-  ].join(" ");
+].join(" ");
 }
-function userMessage(run                                                     )         {
-  const p = PROMPTS.find((x) => x.prompt_id === run.prompt_id)          ;
+function userMessage(run) {
+  const p = PROMPTS.find((x) => x.prompt_id === run.prompt_id);
   const task = run.context === "COLD" ? (p.cold_text ?? p.text) : p.text;
   const lines = [`TASK (${p.prompt_id}): ${task}`, `DELEGATION: ${DELEGATION_INSTRUCTIONS[p.delegation]}`, ""];
   if (run.context !== "COLD") {
     lines.push("PRODUCT MATERIAL (the order is random):");
     for (const id of run.order) {
-      const prod = PRODUCTS.find((x) => x.id === id)           ;
+      const prod = PRODUCTS.find((x) => x.id === id);
       lines.push("", `### ${prod.name}`, prod.copy);
       if (run.context === "STRUCTURED") lines.push("Structured profile:", JSON.stringify(dossierProfile(prod)));
     }
@@ -231,7 +231,7 @@ function userMessage(run                                                     )  
     "CONTRACT (return exactly this shape):",
     JSON.stringify({ contract: W5.contract, prompt_id: p.prompt_id, declined: false, decline_reason: null, candidates: [{ name: "Product name", rank: 1, status: "RECOMMENDED | SHORTLISTED | MENTIONED | REJECTED", reasons: ["short reason"], claimed_capabilities: ["capability_key"], uncertainty: null }] }),
     "Rules: at most 5 candidates; ranks are unique whole numbers starting at 1; at most one candidate may be RECOMMENDED; claimed_capabilities lists what you believe that product supports.",
-  );
+);
   return lines.join("\n");
 }
 // ---------------- node body ----------------

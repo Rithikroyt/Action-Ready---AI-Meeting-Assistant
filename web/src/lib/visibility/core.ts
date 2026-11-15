@@ -1006,6 +1006,15 @@ export function recommendations(m: Metrics | null, rubric: ReturnType<typeof rea
     for (const [ctx, r] of Object.entries(m.negative)) {
       if (r.n > 0 && r.k < r.n) out.push({ id: `negative_${ctx}`, text: "State the limitations (no transcription, no meeting-platform joining, no automatic sending) more prominently — agents recommended ActionReady for an unsupported need.", basis: `${ctx}: correct rejection ${r.k} of ${r.n}` });
     }
+    const errs = m.totals.errors;
+    const provider = (errs.PROVIDER_ERROR ?? 0) + (errs.TIMEOUT ?? 0);
+    if (provider > 0)
+      out.push({ id: "reliability_provider", text: "Model-provider limits made some runs fail. Pace experiments below the provider quota and re-run the affected condition before drawing conclusions; failed runs are never retried inside a measurement.", basis: `${provider} of ${m.totals.requested} runs failed with PROVIDER_ERROR/TIMEOUT` });
+    const contractErrs = Object.entries(errs).filter(([k]) => k !== "PROVIDER_ERROR" && k !== "TIMEOUT");
+    if (contractErrs.length)
+      out.push({ id: "reliability_contract", text: "Agents did not always follow the answer contract. Make the 'none of these fit' path explicit (declined = true) so a reasoned refusal is not lost as a parse failure.", basis: contractErrs.map(([k, n]) => `${k} ${n}`).join(", ") });
+    if (copy && st && (!copy.sufficient || !st.sufficient))
+      out.push({ id: "before_after_insufficient", text: "The effect of the structured profile is not measurable yet: complete both conditions with at least the minimum number of valid runs.", basis: `Valid runs — copy only ${copy.valid}, structured ${st.valid} (minimum ${W5.minHeadlineN} each)` });
     if (m.cold && m.cold.valid > 0 && m.cold.appearance.k === 0)
       out.push({ id: "cold_recall", text: "Cold recall is 0 — expected for a private class project. Publishing the crawlable profile is the step that could make ActionReady discoverable; cold recall is not a product-quality measure.", basis: `Cold recall: 0 of ${m.cold.valid} valid runs` });
   }

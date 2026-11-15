@@ -9,31 +9,31 @@ const W5 = {
   runningTimeoutMinutes: 15,
   minHeadlineN: 10,
   minPromptN: 3,
-}         ;
-function geminiText(res         )                                                                                                                   {
-  const r = (res && typeof res === "object" ? res : {})                           ;
+};
+function geminiText(res) {
+  const r = (res && typeof res === "object" ? res : {});
   if (r.error) {
-    const e = r.error                                  ;
+    const e = r.error;
     const msg = String(typeof e === "object" && e && "message" in e ? e.message : e);
     return { status: /timeout|timed out|ETIMEDOUT|ECONNABORTED/i.test(msg) ? "TIMEOUT" : "ERROR", text: msg.slice(0, 2000), tokens_in: null, tokens_out: null };
   }
-  const usage = (r.usageMetadata ?? null)                                                                       ;
+  const usage = (r.usageMetadata ?? null);
   const tin = usage && typeof usage.promptTokenCount === "number" ? usage.promptTokenCount : null;
   const tout = usage && typeof usage.candidatesTokenCount === "number" ? usage.candidatesTokenCount : null;
-  const fromParts = (c         ) => {
-    const parts = c && typeof c === "object" ? (c                       ).parts : null;
-    return Array.isArray(parts) ? parts.map((p) => (p && typeof (p                      ).text === "string" ? (p                    ).text : "")).join("") : null;
+  const fromParts = (c) => {
+    const parts = c && typeof c === "object" ? (c).parts : null;
+    return Array.isArray(parts) ? parts.map((p) => (p && typeof (p).text === "string" ? (p).text : "")).join("") : null;
   };
   const cands = Array.isArray(r.candidates) ? r.candidates : null;
-  let text                = cands && cands[0] ? fromParts((cands[0]                         ).content) : null;
+  let text = cands && cands[0] ? fromParts((cands[0]).content) : null;
   if (text === null && r.content !== undefined) text = typeof r.content === "string" ? r.content : fromParts(r.content);
   if (text === null && typeof r.text === "string") text = r.text;
-  if (text === null && r.content && typeof r.content === "object" && (r.content                          ).contract) text = JSON.stringify(r.content);
+  if (text === null && r.content && typeof r.content === "object" && (r.content).contract) text = JSON.stringify(r.content);
   if (text === null && typeof r.contract === "string") text = JSON.stringify(r);
   if (text === null) return { status: "ERROR", text: JSON.stringify(r).slice(0, 2000), tokens_in: tin, tokens_out: tout };
   return { status: "OK", text, tokens_in: tin, tokens_out: tout };
 }
-const CAPABILITIES                                   = [
+const CAPABILITIES = [
   { key: "text_notes_input", label: "Accepts typed or pasted meeting notes" },
   { key: "txt_upload", label: "Accepts uploaded .txt notes" },
   { key: "audio_recording", label: "Records meeting audio" },
@@ -55,8 +55,8 @@ const CAPABILITIES                                   = [
   { key: "jira_slack_integration", label: "Jira / Slack integration" },
   { key: "calendar_scheduling", label: "Calendar scheduling" },
 ];
-const CAP_KEYS           = CAPABILITIES.map((c) => c.key);
-const PROMPTS           = [
+const CAP_KEYS = CAPABILITIES.map((c) => c.key);
+const PROMPTS = [
   {
     prompt_id: "P01",
     segment: "OPEN",
@@ -149,46 +149,46 @@ const PROMPTS           = [
 const STATUSES = ["RECOMMENDED", "SHORTLISTED", "MENTIONED", "REJECTED"];
 const TOP_FIELDS = ["contract", "prompt_id", "declined", "decline_reason", "candidates"];
 const CAND_FIELDS = ["name", "rank", "status", "reasons", "claimed_capabilities", "uncertainty"];
-function parseModelOutput(raw         , promptId        , providerStatus         = "OK")              {
-  const fail = (code        , flags           = [])              => ({ parse_success: false, parse_error: code, parsed: null, flags });
+function parseModelOutput(raw, promptId, providerStatus = "OK") {
+  const fail = (code, flags = []) => ({ parse_success: false, parse_error: code, parsed: null, flags });
   if (providerStatus === "TIMEOUT") return fail("TIMEOUT");
   if (providerStatus !== "OK") return fail("PROVIDER_ERROR");
   if (typeof raw !== "string" || !raw.trim()) return fail("NOT_JSON");
   const fenced = raw.match(/^\s*```(?:json)?\s*([\s\S]*?)\s*```\s*$/i);
-  let obj         ;
+  let obj;
   try {
-    obj = JSON.parse(fenced ? (fenced[1]          ) : raw);
+    obj = JSON.parse(fenced ? (fenced[1]) : raw);
   } catch {
     return fail("NOT_JSON");
   }
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) return fail("SCHEMA_INVALID");
-  const o = obj                           ;
-  const flags           = [];
+  const o = obj;
+  const flags = [];
   if (Object.keys(o).some((k) => !TOP_FIELDS.includes(k))) flags.push("EXTRA_FIELDS");
   if (o.contract !== W5.contract) return fail("WRONG_CONTRACT", flags);
   if (o.prompt_id !== promptId) return fail("WRONG_PROMPT_ID", flags);
   if (typeof o.declined !== "boolean") return fail("SCHEMA_INVALID", flags);
   if (o.decline_reason !== undefined && o.decline_reason !== null && typeof o.decline_reason !== "string") return fail("SCHEMA_INVALID", flags);
   if (!Array.isArray(o.candidates) || o.candidates.length > 5) return fail("SCHEMA_INVALID", flags);
-  const cands              = [];
-  for (const c of o.candidates             ) {
+  const cands = [];
+  for (const c of o.candidates) {
     if (!c || typeof c !== "object" || Array.isArray(c)) return fail("SCHEMA_INVALID", flags);
-    const x = c                           ;
+    const x = c;
     if (Object.keys(x).some((k) => !CAND_FIELDS.includes(k)) && !flags.includes("EXTRA_FIELDS")) flags.push("EXTRA_FIELDS");
     if (typeof x.name !== "string" || !x.name.trim() || x.name.length > 120) return fail("SCHEMA_INVALID", flags);
     if (typeof x.status !== "string" || !STATUSES.includes(x.status)) return fail("SCHEMA_INVALID", flags);
     if (x.reasons !== undefined && (!Array.isArray(x.reasons) || x.reasons.some((r) => typeof r !== "string"))) return fail("SCHEMA_INVALID", flags);
     if (x.claimed_capabilities !== undefined && (!Array.isArray(x.claimed_capabilities) || x.claimed_capabilities.some((r) => typeof r !== "string"))) return fail("SCHEMA_INVALID", flags);
     if (x.uncertainty !== undefined && x.uncertainty !== null && typeof x.uncertainty !== "string") return fail("SCHEMA_INVALID", flags);
-    const claims = ((x.claimed_capabilities                        ) ?? []).map((k) => k.trim());
+    const claims = ((x.claimed_capabilities) ?? []).map((k) => k.trim());
     const known = [...new Set(claims.filter((k) => CAP_KEYS.includes(k)))];
     const unmapped = [...new Set(claims.filter((k) => !CAP_KEYS.includes(k)))];
     if (unmapped.length && !flags.includes("UNKNOWN_CAPABILITY")) flags.push("UNKNOWN_CAPABILITY");
     cands.push({
       name: x.name.trim(),
       rank: typeof x.rank === "number" ? x.rank : NaN,
-      status: x.status                       ,
-      reasons: ((x.reasons                        ) ?? []).slice(0, 5).map((r) => r.slice(0, 400)),
+      status: x.status,
+      reasons: ((x.reasons) ?? []).slice(0, 5).map((r) => r.slice(0, 400)),
       claimed_capabilities: known,
       unmapped_capabilities: unmapped,
       uncertainty: typeof x.uncertainty === "string" ? x.uncertainty.slice(0, 400) : null,

@@ -43,7 +43,7 @@ export function buildBranch(ids = {}) {
   };
   const code = buildWeek5Nodes();
   const X = ids.x ?? -2144;
-  const Y = ids.y ?? 11000;
+  const Y = ids.y ?? 11500;
   const at = (col, row) => [X + col * 260, Y + row * 220];
   const hook = (name, method, path, pos) => ({ name, type: "n8n-nodes-base.webhook", typeVersion: 2.2, position: pos, parameters: { httpMethod: method, path, authentication: "headerAuth", responseMode: "responseNode", options: {} }, credentials: t.hookCred });
   const codeNode = (name, file, pos, perItem = false) => ({ name, type: "n8n-nodes-base.code", typeVersion: 2, position: pos, parameters: { ...(perItem ? { mode: "runOnceForEachItem" } : {}), jsCode: code[file] } });
@@ -125,7 +125,7 @@ export function buildBranch(ids = {}) {
     },
     { name: P + "Read Back Run", type: "n8n-nodes-base.dataTable", typeVersion: 1.1, position: at(19, 1), parameters: get(t.run, [cond("run_key", "={{ $('W5 · Code Run Outcome').item.json.run_key }}")]) },
     codeNode(P + "Verify Run Saved", "verify-run-saved.node.js", at(20, 1), true),
-    { name: P + "Rate-limit Spacing", type: "n8n-nodes-base.wait", typeVersion: 1.1, position: at(21, 1), parameters: { resume: "timeInterval", amount: 5, unit: "seconds" } },
+    { name: P + "Rate-limit Spacing", type: "n8n-nodes-base.wait", typeVersion: 1.1, position: at(21, 1), parameters: { resume: "timeInterval", amount: 13, unit: "seconds" } },
     { name: P + "Read Experiment Runs", type: "n8n-nodes-base.dataTable", typeVersion: 1.1, position: at(13, -1), parameters: get(t.run, [cond("experiment_id", "={{ $('W5 · Prepare Test Runs').first().json.experiment.experiment_id }}")]) },
     codeNode(P + "Aggregate Visibility", "aggregate-visibility.node.js", at(14, -1)),
     codeNode(P + "Agent Readability Audit", "agent-readability-audit.node.js", at(15, -1)),
@@ -172,26 +172,22 @@ export function buildBranch(ids = {}) {
     },
   ];
 
+  // NOTE: Code nodes that read $input.all() must NOT use executeOnce (n8n would pass them only the first item).
   const settings = {
     [P + "Read Running Experiments"]: { executeOnce: true, alwaysOutputData: true, onError: "continueRegularOutput" },
-    [P + "Validate Experiment"]: { executeOnce: true },
     [P + "Build Prompt Corpus"]: { executeOnce: true },
     [P + "Prepare Test Runs"]: { executeOnce: true },
     [P + "Create Experiment"]: { executeOnce: true, alwaysOutputData: true, onError: "continueRegularOutput" },
     [P + "Read Back Experiment"]: { executeOnce: true, alwaysOutputData: true, onError: "continueRegularOutput" },
-    [P + "Verify Experiment Saved"]: { executeOnce: true },
     [P + "Gemini A"]: { onError: "continueRegularOutput", alwaysOutputData: true },
     [P + "Gemini B"]: { onError: "continueRegularOutput", alwaysOutputData: true },
     [P + "Persist Run"]: { alwaysOutputData: true, onError: "continueRegularOutput" },
     [P + "Read Back Run"]: { alwaysOutputData: true, onError: "continueRegularOutput" },
     [P + "Read Experiment Runs"]: { executeOnce: true, alwaysOutputData: true, onError: "continueRegularOutput" },
-    [P + "Aggregate Visibility"]: { executeOnce: true },
     [P + "Agent Readability Audit"]: { executeOnce: true },
     [P + "Read Experiment List"]: { executeOnce: true, alwaysOutputData: true, onError: "continueRegularOutput" },
-    [P + "Build List"]: { executeOnce: true },
     [P + "Read Experiment"]: { executeOnce: true, alwaysOutputData: true, onError: "continueRegularOutput" },
     [P + "Read Runs For Detail"]: { executeOnce: true, alwaysOutputData: true, onError: "continueRegularOutput" },
-    [P + "Build Detail"]: { executeOnce: true },
   };
 
   const connections = [

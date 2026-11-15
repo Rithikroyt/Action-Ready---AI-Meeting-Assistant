@@ -9,8 +9,8 @@ const W5 = {
   runningTimeoutMinutes: 15,
   minHeadlineN: 10,
   minPromptN: 3,
-}         ;
-const CAPABILITIES                                   = [
+};
+const CAPABILITIES = [
   { key: "text_notes_input", label: "Accepts typed or pasted meeting notes" },
   { key: "txt_upload", label: "Accepts uploaded .txt notes" },
   { key: "audio_recording", label: "Records meeting audio" },
@@ -32,8 +32,8 @@ const CAPABILITIES                                   = [
   { key: "jira_slack_integration", label: "Jira / Slack integration" },
   { key: "calendar_scheduling", label: "Calendar scheduling" },
 ];
-const CAP_KEYS           = CAPABILITIES.map((c) => c.key);
-const PRODUCTS            = [
+const CAP_KEYS = CAPABILITIES.map((c) => c.key);
+const PRODUCTS = [
   {
     id: "actionready",
     name: "ActionReady",
@@ -95,7 +95,7 @@ const PRODUCTS            = [
     limitations: ["No independent AI review of extracted actions", "No email follow-up", "No evidence quotes from the notes"],
   },
 ];
-function dossierProfile(p         ) {
+function dossierProfile(p) {
   return {
     schema: W5.profileSchema,
     product: p.name,
@@ -109,7 +109,7 @@ function dossierProfile(p         ) {
     limitations: p.limitations,
   };
 }
-const PROMPTS           = [
+const PROMPTS = [
   {
     prompt_id: "P01",
     segment: "OPEN",
@@ -199,7 +199,7 @@ const PROMPTS           = [
     negative: true,
   },
 ];
-function hashString(s        )         {
+function hashString(s) {
   let h = 2166136261 >>> 0;
   for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i);
@@ -209,8 +209,8 @@ function hashString(s        )         {
 }
 const PUBLICATION = { canonical_url: "https://action-ready-ai-meeting-assistant.vercel.app/agent-profile.json", linked_from_landing: true, crawlable: true };
 function agentProfile() {
-  const ar = PRODUCTS[0]           ;
-  const desc = (k        ) => (CAPABILITIES.find((c) => c.key === k)                     ).label;
+  const ar = PRODUCTS[0];
+  const desc = (k) => (CAPABILITIES.find((c) => c.key === k)).label;
   return {
     schema: W5.profileSchema,
     profile_version: W5.profileVersion,
@@ -237,7 +237,7 @@ function agentProfile() {
       { name: "Google Sheets", use: "Approved task tracker, one tab per meeting" },
       { name: "Google sign-in", use: "Identity only — no mailbox access" },
       { name: "n8n", use: "Workflow engine" },
-    ],
+],
     limits: { daily_send_cap: 25, delivery_meaning: "SENT means Gmail accepted the message, not that delivery was confirmed" },
     limitations: ["Text notes only — no audio recording or transcription", "Does not join Zoom, Teams or Meet", "No CRM, calendar or Jira/Slack integration", "One configured project scope", "Capacity checks depend on approver-entered records"],
     safety_principles: ["Missing capacity is never treated as zero", "AI review, operational readiness and human approval are separate states", "Meeting notes are data, never instructions", "Nothing is sent without human approval of the exact message"],

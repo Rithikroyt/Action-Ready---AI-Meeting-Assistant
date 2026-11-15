@@ -9,8 +9,8 @@ const W5 = {
   runningTimeoutMinutes: 15,
   minHeadlineN: 10,
   minPromptN: 3,
-}         ;
-const CAPABILITIES                                   = [
+};
+const CAPABILITIES = [
   { key: "text_notes_input", label: "Accepts typed or pasted meeting notes" },
   { key: "txt_upload", label: "Accepts uploaded .txt notes" },
   { key: "audio_recording", label: "Records meeting audio" },
@@ -32,8 +32,8 @@ const CAPABILITIES                                   = [
   { key: "jira_slack_integration", label: "Jira / Slack integration" },
   { key: "calendar_scheduling", label: "Calendar scheduling" },
 ];
-const CAP_KEYS           = CAPABILITIES.map((c) => c.key);
-const PRODUCTS            = [
+const CAP_KEYS = CAPABILITIES.map((c) => c.key);
+const PRODUCTS = [
   {
     id: "actionready",
     name: "ActionReady",
@@ -95,14 +95,14 @@ const PRODUCTS            = [
     limitations: ["No independent AI review of extracted actions", "No email follow-up", "No evidence quotes from the notes"],
   },
 ];
-function truthOf(productId        )                          {
+function truthOf(productId) {
   const p = PRODUCTS.find((x) => x.id === productId);
-  const out                          = {};
+  const out = {};
   for (const k of CAP_KEYS) out[k] = !!p && p.supported.includes(k);
   return out;
 }
 /** The structured profile given to agents in the STRUCTURED condition — identical schema for all four products. */
-const PROMPTS           = [
+const PROMPTS = [
   {
     prompt_id: "P01",
     segment: "OPEN",
@@ -193,8 +193,8 @@ const PROMPTS           = [
   },
 ];
 const NEGATIVE_REPRESENTATION_KEYS = ["live_transcription", "meeting_platform_join", "auto_send_without_review"];
-const normName = (s         ) => String(s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
-function productIdForName(name         )                {
+const normName = (s) => String(s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+function productIdForName(name) {
   const n = normName(name);
   if (!n) return null;
   if (n.includes("actionready")) return "actionready";
@@ -204,46 +204,46 @@ function productIdForName(name         )                {
 const STATUSES = ["RECOMMENDED", "SHORTLISTED", "MENTIONED", "REJECTED"];
 const TOP_FIELDS = ["contract", "prompt_id", "declined", "decline_reason", "candidates"];
 const CAND_FIELDS = ["name", "rank", "status", "reasons", "claimed_capabilities", "uncertainty"];
-function parseModelOutput(raw         , promptId        , providerStatus         = "OK")              {
-  const fail = (code        , flags           = [])              => ({ parse_success: false, parse_error: code, parsed: null, flags });
+function parseModelOutput(raw, promptId, providerStatus = "OK") {
+  const fail = (code, flags = []) => ({ parse_success: false, parse_error: code, parsed: null, flags });
   if (providerStatus === "TIMEOUT") return fail("TIMEOUT");
   if (providerStatus !== "OK") return fail("PROVIDER_ERROR");
   if (typeof raw !== "string" || !raw.trim()) return fail("NOT_JSON");
   const fenced = raw.match(/^\s*```(?:json)?\s*([\s\S]*?)\s*```\s*$/i);
-  let obj         ;
+  let obj;
   try {
-    obj = JSON.parse(fenced ? (fenced[1]          ) : raw);
+    obj = JSON.parse(fenced ? (fenced[1]) : raw);
   } catch {
     return fail("NOT_JSON");
   }
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) return fail("SCHEMA_INVALID");
-  const o = obj                           ;
-  const flags           = [];
+  const o = obj;
+  const flags = [];
   if (Object.keys(o).some((k) => !TOP_FIELDS.includes(k))) flags.push("EXTRA_FIELDS");
   if (o.contract !== W5.contract) return fail("WRONG_CONTRACT", flags);
   if (o.prompt_id !== promptId) return fail("WRONG_PROMPT_ID", flags);
   if (typeof o.declined !== "boolean") return fail("SCHEMA_INVALID", flags);
   if (o.decline_reason !== undefined && o.decline_reason !== null && typeof o.decline_reason !== "string") return fail("SCHEMA_INVALID", flags);
   if (!Array.isArray(o.candidates) || o.candidates.length > 5) return fail("SCHEMA_INVALID", flags);
-  const cands              = [];
-  for (const c of o.candidates             ) {
+  const cands = [];
+  for (const c of o.candidates) {
     if (!c || typeof c !== "object" || Array.isArray(c)) return fail("SCHEMA_INVALID", flags);
-    const x = c                           ;
+    const x = c;
     if (Object.keys(x).some((k) => !CAND_FIELDS.includes(k)) && !flags.includes("EXTRA_FIELDS")) flags.push("EXTRA_FIELDS");
     if (typeof x.name !== "string" || !x.name.trim() || x.name.length > 120) return fail("SCHEMA_INVALID", flags);
     if (typeof x.status !== "string" || !STATUSES.includes(x.status)) return fail("SCHEMA_INVALID", flags);
     if (x.reasons !== undefined && (!Array.isArray(x.reasons) || x.reasons.some((r) => typeof r !== "string"))) return fail("SCHEMA_INVALID", flags);
     if (x.claimed_capabilities !== undefined && (!Array.isArray(x.claimed_capabilities) || x.claimed_capabilities.some((r) => typeof r !== "string"))) return fail("SCHEMA_INVALID", flags);
     if (x.uncertainty !== undefined && x.uncertainty !== null && typeof x.uncertainty !== "string") return fail("SCHEMA_INVALID", flags);
-    const claims = ((x.claimed_capabilities                        ) ?? []).map((k) => k.trim());
+    const claims = ((x.claimed_capabilities) ?? []).map((k) => k.trim());
     const known = [...new Set(claims.filter((k) => CAP_KEYS.includes(k)))];
     const unmapped = [...new Set(claims.filter((k) => !CAP_KEYS.includes(k)))];
     if (unmapped.length && !flags.includes("UNKNOWN_CAPABILITY")) flags.push("UNKNOWN_CAPABILITY");
     cands.push({
       name: x.name.trim(),
       rank: typeof x.rank === "number" ? x.rank : NaN,
-      status: x.status                       ,
-      reasons: ((x.reasons                        ) ?? []).slice(0, 5).map((r) => r.slice(0, 400)),
+      status: x.status,
+      reasons: ((x.reasons) ?? []).slice(0, 5).map((r) => r.slice(0, 400)),
       claimed_capabilities: known,
       unmapped_capabilities: unmapped,
       uncertainty: typeof x.uncertainty === "string" ? x.uncertainty.slice(0, 400) : null,
@@ -267,7 +267,7 @@ function parseModelOutput(raw         , promptId        , providerStatus        
     flags,
   };
 }
-function codeRun(parse             , promptId        )                    {
+function codeRun(parse, promptId) {
   if (!parse.parse_success || !parse.parsed) return null;
   const prompt = PROMPTS.find((p) => p.prompt_id === promptId);
   const flags = parse.flags.slice();
@@ -280,7 +280,7 @@ function codeRun(parse             , promptId        )                    {
   const recommended = ar.some((c) => c.status === "RECOMMENDED");
   const textBlob = [...parse.parsed.candidates.flatMap((c) => [...c.reasons, c.uncertainty ?? ""]), parse.parsed.decline_reason ?? ""].join(" ");
   const unsupported = claims.filter((k) => !truth[k]);
-  const peers                      = {};
+  const peers = {};
   for (const p of PRODUCTS.filter((x) => x.synthetic)) {
     const t = truthOf(p.id);
     const mine = parse.parsed.candidates.filter((c) => productIdForName(c.name) === p.id);
@@ -304,7 +304,7 @@ function codeRun(parse             , promptId        )                    {
     flags,
   };
 }
-function runRow(run            , experimentId        , call                                                                                          )                                   {
+function runRow(run, experimentId, call) {
   const parse = parseModelOutput(call.raw, run.prompt_id, call.provider_status);
   const out = codeRun(parse, run.prompt_id);
   const raw = typeof call.raw === "string" ? call.raw : call.raw == null ? "" : JSON.stringify(call.raw);

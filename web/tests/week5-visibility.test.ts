@@ -237,6 +237,13 @@ describe("agent profile + readability rubric", () => {
     expect(readability(profile, { linked_from_landing: false, crawlable: false }).score).toBe(94);
     expect(readability(profile, { linked_from_landing: false, crawlable: false }).weakest).toBe("metadata");
   });
+  it("reliability rules fire on provider failures, contract violations and an unmeasurable before/after", () => {
+    const runs = planRuns("w5x_test01_abcdef", REQ);
+    const rows = runs.map((r, i) => (r.context === "STRUCTURED" && i % 15 !== 14 ? rowFor(r, "429", "ERROR") : r.prompt_id === "P08" && r.rep === 1 ? rowFor(r, answer("P08", [cand("Tool A", 1, "REJECTED")])) : rowFor(r, answer(r.prompt_id, [cand("ActionReady", 1, "RECOMMENDED")]))));
+    const ids = recommendations(aggregate(rows), readability(agentProfile())).map((x) => x.id);
+    expect(ids).toEqual(expect.arrayContaining(["reliability_provider", "reliability_contract", "before_after_insufficient"]));
+    expect(ids).not.toContain("none");
+  });
   it("recommendations are rule-based and cite their measured basis", () => {
     const runs = planRuns("w5x_test01_abcdef", REQ);
     const m = aggregate(runs.map((r) => rowFor(r, answer(r.prompt_id, [cand("ActionReady", 1, "RECOMMENDED", ["crm_sync"])]))));
@@ -341,6 +348,12 @@ describe("branch graph isolation", () => {
     for (const n of nodes.filter((x) => x.type.includes("googleGemini"))) {
       expect((n.parameters.modelId as { value: string }).value).toMatch(/^models\/gemini-3\.5-flash(-lite)?$/);
       expect(n.parameters.builtInTools).toEqual({});
+    }
+  });
+  it("no Code node that reads $input.all() runs with executeOnce (it would only see the first item)", () => {
+    const { settings } = buildBranch() as { settings: Record<string, { executeOnce?: boolean }> };
+    for (const n of nodes.filter((x) => x.type === "n8n-nodes-base.code")) {
+      if (String(n.parameters.jsCode).includes("$input.all()")) expect(settings[n.name]?.executeOnce, n.name).not.toBe(true);
     }
   });
   it("webhooks use header auth", () => {

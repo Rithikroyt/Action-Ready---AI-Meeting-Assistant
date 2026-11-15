@@ -9,8 +9,8 @@ const W5 = {
   runningTimeoutMinutes: 15,
   minHeadlineN: 10,
   minPromptN: 3,
-}         ;
-const CAPABILITIES                                   = [
+};
+const CAPABILITIES = [
   { key: "text_notes_input", label: "Accepts typed or pasted meeting notes" },
   { key: "txt_upload", label: "Accepts uploaded .txt notes" },
   { key: "audio_recording", label: "Records meeting audio" },
@@ -32,8 +32,8 @@ const CAPABILITIES                                   = [
   { key: "jira_slack_integration", label: "Jira / Slack integration" },
   { key: "calendar_scheduling", label: "Calendar scheduling" },
 ];
-const CAP_KEYS           = CAPABILITIES.map((c) => c.key);
-const PRODUCTS            = [
+const CAP_KEYS = CAPABILITIES.map((c) => c.key);
+const PRODUCTS = [
   {
     id: "actionready",
     name: "ActionReady",
@@ -95,17 +95,17 @@ const PRODUCTS            = [
     limitations: ["No independent AI review of extracted actions", "No email follow-up", "No evidence quotes from the notes"],
   },
 ];
-function truthOf(productId        )                          {
+function truthOf(productId) {
   const p = PRODUCTS.find((x) => x.id === productId);
-  const out                          = {};
+  const out = {};
   for (const k of CAP_KEYS) out[k] = !!p && p.supported.includes(k);
   return out;
 }
 /** The structured profile given to agents in the STRUCTURED condition — identical schema for all four products. */
 const PUBLICATION = { canonical_url: "https://action-ready-ai-meeting-assistant.vercel.app/agent-profile.json", linked_from_landing: true, crawlable: true };
 function agentProfile() {
-  const ar = PRODUCTS[0]           ;
-  const desc = (k        ) => (CAPABILITIES.find((c) => c.key === k)                     ).label;
+  const ar = PRODUCTS[0];
+  const desc = (k) => (CAPABILITIES.find((c) => c.key === k)).label;
   return {
     schema: W5.profileSchema,
     profile_version: W5.profileVersion,
@@ -132,24 +132,24 @@ function agentProfile() {
       { name: "Google Sheets", use: "Approved task tracker, one tab per meeting" },
       { name: "Google sign-in", use: "Identity only — no mailbox access" },
       { name: "n8n", use: "Workflow engine" },
-    ],
+],
     limits: { daily_send_cap: 25, delivery_meaning: "SENT means Gmail accepted the message, not that delivery was confirmed" },
     limitations: ["Text notes only — no audio recording or transcription", "Does not join Zoom, Teams or Meet", "No CRM, calendar or Jira/Slack integration", "One configured project scope", "Capacity checks depend on approver-entered records"],
     safety_principles: ["Missing capacity is never treated as zero", "AI review, operational readiness and human approval are separate states", "Meeting notes are data, never instructions", "Nothing is sent without human approval of the exact message"],
     data_handling: "The website does not store full meeting notes; the workflow keeps allowlisted summaries and short excerpts.",
   };
 }
-function readability(profile                         , pub                                                       = PUBLICATION)                                                                             {
-  const arr = (v         ) => (Array.isArray(v) ? v : []);
-  const obj = (v         ) => (v && typeof v === "object" && !Array.isArray(v) ? (v                           ) : null);
-  const str = (v         ) => typeof v === "string" && v.trim().length > 0;
-  const caps = arr(profile.capabilities)                             ;
+function readability(profile, pub = PUBLICATION) {
+  const arr = (v) => (Array.isArray(v) ? v : []);
+  const obj = (v) => (v && typeof v === "object" && !Array.isArray(v) ? (v) : null);
+  const str = (v) => typeof v === "string" && v.trim().length > 0;
+  const caps = arr(profile.capabilities);
   const truth = truthOf("actionready");
   const ha = obj(profile.human_approval);
   const ds = obj(profile.decision_states);
   const limits = obj(profile.limits);
-  const C = (id        , label        , points        , pass         )            => ({ id, label, points, pass });
-  const sections                                 = [
+  const C = (id, label, points, pass) => ({ id, label, points, pass });
+  const sections = [
     {
       id: "capability",
       label: "Capability completeness",
@@ -159,7 +159,7 @@ function readability(profile                         , pub                      
         C("cap_described", "Every capability has a known key and a description of 200 characters or less", 5, caps.length > 0 && caps.every((c) => CAP_KEYS.includes(String(c.key)) && str(c.description) && String(c.description).length <= 200)),
         C("cap_count", "At least 8 capabilities", 5, caps.length >= 8),
         C("cap_truthful", "No overclaims: every listed capability is supported", 10, caps.length > 0 && caps.every((c) => truth[String(c.key)] === true)),
-      ],
+],
     },
     {
       id: "comparability",
@@ -170,18 +170,18 @@ function readability(profile                         , pub                      
         C("use_cases", "At least 3 use cases", 4, arr(profile.use_cases).length >= 3),
         C("inputs", "Supported inputs listed", 4, arr(profile.supported_inputs).length > 0),
         C("not_supported", "At least 3 explicitly unsupported capabilities", 8, arr(profile.not_supported).filter((k) => CAP_KEYS.includes(String(k))).length >= 3),
-      ],
+],
     },
     {
       id: "trust",
       label: "Evidence / trust clarity",
       max: 20,
       criteria: [
-        C("decision_states", "Decision states listed with meanings", 5, !!ds && Object.values(ds).some((v) => obj(v) && Object.values(obj(v)          ).every(str))),
+        C("decision_states", "Decision states listed with meanings", 5, !!ds && Object.values(ds).some((v) => obj(v) && Object.values(obj(v)).every(str))),
         C("evidence_policy", "Evidence policy stated", 5, str(profile.evidence_policy)),
         C("checking_process", "Checking process described", 5, str(profile.checking_process)),
         C("limitations", "At least 3 limitations", 5, arr(profile.limitations).length >= 3),
-      ],
+],
     },
     {
       id: "safety",
@@ -192,7 +192,7 @@ function readability(profile                         , pub                      
         C("no_auto_send", "States explicitly that nothing is sent automatically", 6, !!ha && ha.auto_send === false),
         C("send_limit", "Send limit stated", 3, !!limits && typeof limits.daily_send_cap === "number"),
         C("data_handling", "Data-handling statement", 3, str(profile.data_handling)),
-      ],
+],
     },
     {
       id: "metadata",
@@ -204,11 +204,11 @@ function readability(profile                         , pub                      
         C("canonical", "Canonical URL", 3, typeof profile.canonical_url === "string" && /^https:\/\//.test(profile.canonical_url)),
         C("linked", "Discoverable: linked from the landing page", 3, pub.linked_from_landing),
         C("crawlable", "Profile route is not blocked to crawlers", 3, pub.crawlable),
-      ],
+],
     },
-  ];
+];
   const scored = sections.map((s) => ({ ...s, score: s.criteria.filter((c) => c.pass).reduce((a, c) => a + c.points, 0) }));
-  const weakest = scored.slice().sort((a, b) => a.score / a.max - b.score / b.max)[0]                 ;
+  const weakest = scored.slice().sort((a, b) => a.score / a.max - b.score / b.max)[0];
   return { score: scored.reduce((a, s) => a + s.score, 0), max: 100, sections: scored, weakest: weakest.id };
 }
 // ---------------- node body ----------------

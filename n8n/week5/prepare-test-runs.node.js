@@ -9,8 +9,8 @@ const W5 = {
   runningTimeoutMinutes: 15,
   minHeadlineN: 10,
   minPromptN: 3,
-}         ;
-const PRODUCTS            = [
+};
+const PRODUCTS = [
   {
     id: "actionready",
     name: "ActionReady",
@@ -72,7 +72,7 @@ const PRODUCTS            = [
     limitations: ["No independent AI review of extracted actions", "No email follow-up", "No evidence quotes from the notes"],
   },
 ];
-const PROMPTS           = [
+const PROMPTS = [
   {
     prompt_id: "P01",
     segment: "OPEN",
@@ -162,7 +162,7 @@ const PROMPTS           = [
     negative: true,
   },
 ];
-function hashString(s        )         {
+function hashString(s) {
   let h = 2166136261 >>> 0;
   for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i);
@@ -170,7 +170,7 @@ function hashString(s        )         {
   }
   return h >>> 0;
 }
-function seededShuffle   (items     , seedText        )      {
+function seededShuffle (items, seedText) {
   let a = hashString(seedText) || 1;
   const rand = () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -182,17 +182,17 @@ function seededShuffle   (items     , seedText        )      {
   const out = items.slice();
   for (let i = out.length - 1; i > 0; i--) {
     const j = Math.floor(rand() * (i + 1));
-    const tmp = out[i]     ;
-    out[i] = out[j]     ;
+    const tmp = out[i];
+    out[i] = out[j];
     out[j] = tmp;
   }
   return out;
 }
-function planRuns(experimentId        , req                   )               {
-  const runs               = [];
+function planRuns(experimentId, req) {
+  const runs = [];
   const ids = PRODUCTS.map((p) => p.id);
-  const push = (context         , prompt_id        , model_id        , rep        ) => {
-    const p = PROMPTS.find((x) => x.prompt_id === prompt_id)          ;
+  const push = (context, prompt_id, model_id, rep) => {
+    const p = PROMPTS.find((x) => x.prompt_id === prompt_id);
     const run_key = `${experimentId}:${context}:${model_id}:${prompt_id}:${rep}`;
     runs.push({ run_key, run_index: runs.length, prompt_id, segment: p.segment, model_id, context, rep, order: context === "COLD" ? [] : seededShuffle(ids, `${req.seed}|${prompt_id}|${rep}`) });
   };

@@ -9,8 +9,8 @@ const W5 = {
   runningTimeoutMinutes: 15,
   minHeadlineN: 10,
   minPromptN: 3,
-}         ;
-const CAPABILITIES                                   = [
+};
+const CAPABILITIES = [
   { key: "text_notes_input", label: "Accepts typed or pasted meeting notes" },
   { key: "txt_upload", label: "Accepts uploaded .txt notes" },
   { key: "audio_recording", label: "Records meeting audio" },
@@ -32,8 +32,8 @@ const CAPABILITIES                                   = [
   { key: "jira_slack_integration", label: "Jira / Slack integration" },
   { key: "calendar_scheduling", label: "Calendar scheduling" },
 ];
-const CAP_KEYS           = CAPABILITIES.map((c) => c.key);
-const PRODUCTS            = [
+const CAP_KEYS = CAPABILITIES.map((c) => c.key);
+const PRODUCTS = [
   {
     id: "actionready",
     name: "ActionReady",
@@ -95,14 +95,14 @@ const PRODUCTS            = [
     limitations: ["No independent AI review of extracted actions", "No email follow-up", "No evidence quotes from the notes"],
   },
 ];
-function truthOf(productId        )                          {
+function truthOf(productId) {
   const p = PRODUCTS.find((x) => x.id === productId);
-  const out                          = {};
+  const out = {};
   for (const k of CAP_KEYS) out[k] = !!p && p.supported.includes(k);
   return out;
 }
 /** The structured profile given to agents in the STRUCTURED condition — identical schema for all four products. */
-const PROMPTS           = [
+const PROMPTS = [
   {
     prompt_id: "P01",
     segment: "OPEN",
@@ -192,22 +192,22 @@ const PROMPTS           = [
     negative: true,
   },
 ];
-const asBool = (v         ) => v === true || v === "true" || v === 1 || v === "1";
-const csv = (v         ) => (typeof v === "string" && v.trim() ? v.split(",").map((s) => s.trim()).filter(Boolean) : []);
-function wilson(k        , n        )       {
+const asBool = (v) => v === true || v === "true" || v === 1 || v === "1";
+const csv = (v) => (typeof v === "string" && v.trim() ? v.split(",").map((s) => s.trim()).filter(Boolean) : []);
+function wilson(k, n) {
   if (!n) return { k, n, rate: null, low: null, high: null };
   const z = 1.959964;
   const p = k / n;
   const d = 1 + (z * z) / n;
   const c = p + (z * z) / (2 * n);
   const m = z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n));
-  const r = (x        ) => Math.round(x * 10000) / 10000;
+  const r = (x) => Math.round(x * 10000) / 10000;
   return { k, n, rate: r(p), low: r(Math.max(0, (c - m) / d)), high: r(Math.min(1, (c + m) / d)) };
 }
-function sliceOf(rows          , minN         = W5.minHeadlineN)        {
+function sliceOf(rows, minN = W5.minHeadlineN) {
   const valid = rows.filter((r) => asBool(r.parse_success));
   const ment = valid.filter((r) => asBool(r.ar_mentioned));
-  const count = (f                        ) => valid.filter(f).length;
+  const count = (f) => valid.filter(f).length;
   let correct = 0;
   let unsupported = 0;
   for (const r of ment) {
@@ -216,7 +216,7 @@ function sliceOf(rows          , minN         = W5.minHeadlineN)        {
     unsupported += uns.length;
     correct += claims.filter((k) => !uns.includes(k)).length;
   }
-  const errors                         = {};
+  const errors = {};
   for (const r of rows.filter((x) => !asBool(x.parse_success))) {
     const e = String(r.parse_error || "UNKNOWN");
     errors[e] = (errors[e] ?? 0) + 1;
@@ -236,16 +236,16 @@ function sliceOf(rows          , minN         = W5.minHeadlineN)        {
     errors,
   };
 }
-function aggregate(rowsIn          )          {
+function aggregate(rowsIn) {
   const rows = rowsIn.filter((r) => r && typeof r.run_key === "string");
-  const isNeg = (r        ) => !!PROMPTS.find((p) => p.prompt_id === r.prompt_id)?.negative;
+  const isNeg = (r) => !!PROMPTS.find((p) => p.prompt_id === r.prompt_id)?.negative;
   const ctxRows = rows.filter((r) => r.context === "COPY" || r.context === "STRUCTURED");
   const coldRows = rows.filter((r) => r.context === "COLD");
   const funnel = ctxRows.filter((r) => !isNeg(r));
-  const contexts                        = {};
-  const by_segment                                        = {};
-  const by_model                                        = {};
-  const negative                       = {};
+  const contexts = {};
+  const by_segment = {};
+  const by_model = {};
+  const negative = {};
   for (const ctx of ["COPY", "STRUCTURED"]) {
     const rs = funnel.filter((r) => r.context === ctx);
     if (!rs.length) continue;
@@ -253,7 +253,7 @@ function aggregate(rowsIn          )          {
     by_segment[ctx] = {};
     for (const seg of ["OPEN", "CONSTRAINED", "DELEGATED"]) {
       const s = rs.filter((r) => PROMPTS.find((p) => p.prompt_id === r.prompt_id)?.segment === seg);
-      if (s.length) (by_segment[ctx]                         )[seg] = sliceOf(s, W5.minPromptN);
+      if (s.length) (by_segment[ctx])[seg] = sliceOf(s, W5.minPromptN);
     }
     const neg = ctxRows.filter((r) => r.context === ctx && isNeg(r) && asBool(r.parse_success));
     const negAll = ctxRows.filter((r) => r.context === ctx && isNeg(r));
@@ -263,18 +263,18 @@ function aggregate(rowsIn          )          {
     by_model[m] = {};
     for (const ctx of ["COPY", "STRUCTURED"]) {
       const s = funnel.filter((r) => r.model_id === m && r.context === ctx);
-      if (s.length) (by_model[m]                         )[ctx] = sliceOf(s);
+      if (s.length) (by_model[m])[ctx] = sliceOf(s);
     }
   }
-  const groups = new Map                  ();
+  const groups = new Map ();
   for (const r of rows) {
     const k = `${r.prompt_id}|${r.context}|${r.model_id}`;
     groups.set(k, [...(groups.get(k) ?? []), r]);
   }
-  const by_prompt                       = [];
-  const agreements           = [];
+  const by_prompt = [];
+  const agreements = [];
   for (const [k, rs] of groups) {
-    const [prompt_id, context, model_id] = k.split("|")                            ;
+    const [prompt_id, context, model_id] = k.split("|");
     const neg = PROMPTS.find((p) => p.prompt_id === prompt_id)?.negative;
     const valid = rs.filter((r) => asBool(r.parse_success));
     by_prompt.push({ prompt_id, context, model_id, slice: sliceOf(rs, W5.minPromptN), correct_rejection: neg ? wilson(valid.filter((r) => !asBool(r.ar_recommended)).length, valid.length) : null });
@@ -284,13 +284,13 @@ function aggregate(rowsIn          )          {
     }
   }
   by_prompt.sort((a, b) => a.prompt_id.localeCompare(b.prompt_id) || a.context.localeCompare(b.context) || a.model_id.localeCompare(b.model_id));
-  const peers                   = {};
+  const peers = {};
   for (const p of PRODUCTS.filter((x) => x.synthetic)) {
     let c = 0;
     let u = 0;
     for (const r of ctxRows.filter((x) => asBool(x.parse_success))) {
       try {
-        const pj = JSON.parse(String(r.peer_json || "{}"))                                                              ;
+        const pj = JSON.parse(String(r.peer_json || "{}"));
         c += Number(pj[p.id]?.correct ?? 0);
         u += Number(pj[p.id]?.unsupported ?? 0);
       } catch {
@@ -316,8 +316,8 @@ function aggregate(rowsIn          )          {
 /** Turns a model call + parse + coding into the exact row stored in AR_W5_Runs. */
 const PUBLICATION = { canonical_url: "https://action-ready-ai-meeting-assistant.vercel.app/agent-profile.json", linked_from_landing: true, crawlable: true };
 function agentProfile() {
-  const ar = PRODUCTS[0]           ;
-  const desc = (k        ) => (CAPABILITIES.find((c) => c.key === k)                     ).label;
+  const ar = PRODUCTS[0];
+  const desc = (k) => (CAPABILITIES.find((c) => c.key === k)).label;
   return {
     schema: W5.profileSchema,
     profile_version: W5.profileVersion,
@@ -344,24 +344,24 @@ function agentProfile() {
       { name: "Google Sheets", use: "Approved task tracker, one tab per meeting" },
       { name: "Google sign-in", use: "Identity only — no mailbox access" },
       { name: "n8n", use: "Workflow engine" },
-    ],
+],
     limits: { daily_send_cap: 25, delivery_meaning: "SENT means Gmail accepted the message, not that delivery was confirmed" },
     limitations: ["Text notes only — no audio recording or transcription", "Does not join Zoom, Teams or Meet", "No CRM, calendar or Jira/Slack integration", "One configured project scope", "Capacity checks depend on approver-entered records"],
     safety_principles: ["Missing capacity is never treated as zero", "AI review, operational readiness and human approval are separate states", "Meeting notes are data, never instructions", "Nothing is sent without human approval of the exact message"],
     data_handling: "The website does not store full meeting notes; the workflow keeps allowlisted summaries and short excerpts.",
   };
 }
-function readability(profile                         , pub                                                       = PUBLICATION)                                                                             {
-  const arr = (v         ) => (Array.isArray(v) ? v : []);
-  const obj = (v         ) => (v && typeof v === "object" && !Array.isArray(v) ? (v                           ) : null);
-  const str = (v         ) => typeof v === "string" && v.trim().length > 0;
-  const caps = arr(profile.capabilities)                             ;
+function readability(profile, pub = PUBLICATION) {
+  const arr = (v) => (Array.isArray(v) ? v : []);
+  const obj = (v) => (v && typeof v === "object" && !Array.isArray(v) ? (v) : null);
+  const str = (v) => typeof v === "string" && v.trim().length > 0;
+  const caps = arr(profile.capabilities);
   const truth = truthOf("actionready");
   const ha = obj(profile.human_approval);
   const ds = obj(profile.decision_states);
   const limits = obj(profile.limits);
-  const C = (id        , label        , points        , pass         )            => ({ id, label, points, pass });
-  const sections                                 = [
+  const C = (id, label, points, pass) => ({ id, label, points, pass });
+  const sections = [
     {
       id: "capability",
       label: "Capability completeness",
@@ -371,7 +371,7 @@ function readability(profile                         , pub                      
         C("cap_described", "Every capability has a known key and a description of 200 characters or less", 5, caps.length > 0 && caps.every((c) => CAP_KEYS.includes(String(c.key)) && str(c.description) && String(c.description).length <= 200)),
         C("cap_count", "At least 8 capabilities", 5, caps.length >= 8),
         C("cap_truthful", "No overclaims: every listed capability is supported", 10, caps.length > 0 && caps.every((c) => truth[String(c.key)] === true)),
-      ],
+],
     },
     {
       id: "comparability",
@@ -382,18 +382,18 @@ function readability(profile                         , pub                      
         C("use_cases", "At least 3 use cases", 4, arr(profile.use_cases).length >= 3),
         C("inputs", "Supported inputs listed", 4, arr(profile.supported_inputs).length > 0),
         C("not_supported", "At least 3 explicitly unsupported capabilities", 8, arr(profile.not_supported).filter((k) => CAP_KEYS.includes(String(k))).length >= 3),
-      ],
+],
     },
     {
       id: "trust",
       label: "Evidence / trust clarity",
       max: 20,
       criteria: [
-        C("decision_states", "Decision states listed with meanings", 5, !!ds && Object.values(ds).some((v) => obj(v) && Object.values(obj(v)          ).every(str))),
+        C("decision_states", "Decision states listed with meanings", 5, !!ds && Object.values(ds).some((v) => obj(v) && Object.values(obj(v)).every(str))),
         C("evidence_policy", "Evidence policy stated", 5, str(profile.evidence_policy)),
         C("checking_process", "Checking process described", 5, str(profile.checking_process)),
         C("limitations", "At least 3 limitations", 5, arr(profile.limitations).length >= 3),
-      ],
+],
     },
     {
       id: "safety",
@@ -404,7 +404,7 @@ function readability(profile                         , pub                      
         C("no_auto_send", "States explicitly that nothing is sent automatically", 6, !!ha && ha.auto_send === false),
         C("send_limit", "Send limit stated", 3, !!limits && typeof limits.daily_send_cap === "number"),
         C("data_handling", "Data-handling statement", 3, str(profile.data_handling)),
-      ],
+],
     },
     {
       id: "metadata",
@@ -416,15 +416,15 @@ function readability(profile                         , pub                      
         C("canonical", "Canonical URL", 3, typeof profile.canonical_url === "string" && /^https:\/\//.test(profile.canonical_url)),
         C("linked", "Discoverable: linked from the landing page", 3, pub.linked_from_landing),
         C("crawlable", "Profile route is not blocked to crawlers", 3, pub.crawlable),
-      ],
+],
     },
-  ];
+];
   const scored = sections.map((s) => ({ ...s, score: s.criteria.filter((c) => c.pass).reduce((a, c) => a + c.points, 0) }));
-  const weakest = scored.slice().sort((a, b) => a.score / a.max - b.score / b.max)[0]                 ;
+  const weakest = scored.slice().sort((a, b) => a.score / a.max - b.score / b.max)[0];
   return { score: scored.reduce((a, s) => a + s.score, 0), max: 100, sections: scored, weakest: weakest.id };
 }
-function recommendations(m                , rubric                                )                                                {
-  const out                                                = [];
+function recommendations(m, rubric) {
+  const out = [];
   for (const s of rubric.sections) {
     const failing = s.criteria.filter((c) => !c.pass);
     if (failing.length) out.push({ id: `rubric_${s.id}`, text: `Improve ${s.label.toLowerCase()}: ${failing.map((c) => c.label.toLowerCase()).join("; ")}.`, basis: `Readability rubric: ${s.score}/${s.max}` });
@@ -440,6 +440,15 @@ function recommendations(m                , rubric                              
     for (const [ctx, r] of Object.entries(m.negative)) {
       if (r.n > 0 && r.k < r.n) out.push({ id: `negative_${ctx}`, text: "State the limitations (no transcription, no meeting-platform joining, no automatic sending) more prominently — agents recommended ActionReady for an unsupported need.", basis: `${ctx}: correct rejection ${r.k} of ${r.n}` });
     }
+    const errs = m.totals.errors;
+    const provider = (errs.PROVIDER_ERROR ?? 0) + (errs.TIMEOUT ?? 0);
+    if (provider > 0)
+      out.push({ id: "reliability_provider", text: "Model-provider limits made some runs fail. Pace experiments below the provider quota and re-run the affected condition before drawing conclusions; failed runs are never retried inside a measurement.", basis: `${provider} of ${m.totals.requested} runs failed with PROVIDER_ERROR/TIMEOUT` });
+    const contractErrs = Object.entries(errs).filter(([k]) => k !== "PROVIDER_ERROR" && k !== "TIMEOUT");
+    if (contractErrs.length)
+      out.push({ id: "reliability_contract", text: "Agents did not always follow the answer contract. Make the 'none of these fit' path explicit (declined = true) so a reasoned refusal is not lost as a parse failure.", basis: contractErrs.map(([k, n]) => `${k} ${n}`).join(", ") });
+    if (copy && st && (!copy.sufficient || !st.sufficient))
+      out.push({ id: "before_after_insufficient", text: "The effect of the structured profile is not measurable yet: complete both conditions with at least the minimum number of valid runs.", basis: `Valid runs — copy only ${copy.valid}, structured ${st.valid} (minimum ${W5.minHeadlineN} each)` });
     if (m.cold && m.cold.valid > 0 && m.cold.appearance.k === 0)
       out.push({ id: "cold_recall", text: "Cold recall is 0 — expected for a private class project. Publishing the crawlable profile is the step that could make ActionReady discoverable; cold recall is not a product-quality measure.", basis: `Cold recall: 0 of ${m.cold.valid} valid runs` });
   }

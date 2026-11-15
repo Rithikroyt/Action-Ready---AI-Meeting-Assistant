@@ -16,7 +16,14 @@ export function coreJs() {
   return stripTypeScriptTypes(ts, { mode: "strip" })
     .replace(/^export (?=(const|function|let)\b)/gm, "")
     .split("\n")
-    .map((l) => l.replace(/\s+$/, ""))
+    .map((l) =>
+      l
+        .replace(/\s+$/, "")
+        // type stripping leaves blank padding where annotations were; collapse it (core strings never contain double spaces)
+        .replace(/(\S) {2,}/g, "$1 ")
+        .replace(/ +([;,)\]])/g, "$1")
+        .replace(/\( +/g, "("),
+    )
     .filter((l) => l.trim() && !/^\s*\/\//.test(l))
     .join("\n");
 }

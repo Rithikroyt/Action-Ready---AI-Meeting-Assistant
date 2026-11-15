@@ -9,8 +9,8 @@ const W5 = {
   runningTimeoutMinutes: 15,
   minHeadlineN: 10,
   minPromptN: 3,
-}         ;
-const PRODUCTS            = [
+};
+const PRODUCTS = [
   {
     id: "actionready",
     name: "ActionReady",
@@ -72,7 +72,7 @@ const PRODUCTS            = [
     limitations: ["No independent AI review of extracted actions", "No email follow-up", "No evidence quotes from the notes"],
   },
 ];
-const PROMPTS           = [
+const PROMPTS = [
   {
     prompt_id: "P01",
     segment: "OPEN",
@@ -162,22 +162,22 @@ const PROMPTS           = [
     negative: true,
   },
 ];
-const asBool = (v         ) => v === true || v === "true" || v === 1 || v === "1";
-const csv = (v         ) => (typeof v === "string" && v.trim() ? v.split(",").map((s) => s.trim()).filter(Boolean) : []);
-function wilson(k        , n        )       {
+const asBool = (v) => v === true || v === "true" || v === 1 || v === "1";
+const csv = (v) => (typeof v === "string" && v.trim() ? v.split(",").map((s) => s.trim()).filter(Boolean) : []);
+function wilson(k, n) {
   if (!n) return { k, n, rate: null, low: null, high: null };
   const z = 1.959964;
   const p = k / n;
   const d = 1 + (z * z) / n;
   const c = p + (z * z) / (2 * n);
   const m = z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n));
-  const r = (x        ) => Math.round(x * 10000) / 10000;
+  const r = (x) => Math.round(x * 10000) / 10000;
   return { k, n, rate: r(p), low: r(Math.max(0, (c - m) / d)), high: r(Math.min(1, (c + m) / d)) };
 }
-function sliceOf(rows          , minN         = W5.minHeadlineN)        {
+function sliceOf(rows, minN = W5.minHeadlineN) {
   const valid = rows.filter((r) => asBool(r.parse_success));
   const ment = valid.filter((r) => asBool(r.ar_mentioned));
-  const count = (f                        ) => valid.filter(f).length;
+  const count = (f) => valid.filter(f).length;
   let correct = 0;
   let unsupported = 0;
   for (const r of ment) {
@@ -186,7 +186,7 @@ function sliceOf(rows          , minN         = W5.minHeadlineN)        {
     unsupported += uns.length;
     correct += claims.filter((k) => !uns.includes(k)).length;
   }
-  const errors                         = {};
+  const errors = {};
   for (const r of rows.filter((x) => !asBool(x.parse_success))) {
     const e = String(r.parse_error || "UNKNOWN");
     errors[e] = (errors[e] ?? 0) + 1;
@@ -206,16 +206,16 @@ function sliceOf(rows          , minN         = W5.minHeadlineN)        {
     errors,
   };
 }
-function aggregate(rowsIn          )          {
+function aggregate(rowsIn) {
   const rows = rowsIn.filter((r) => r && typeof r.run_key === "string");
-  const isNeg = (r        ) => !!PROMPTS.find((p) => p.prompt_id === r.prompt_id)?.negative;
+  const isNeg = (r) => !!PROMPTS.find((p) => p.prompt_id === r.prompt_id)?.negative;
   const ctxRows = rows.filter((r) => r.context === "COPY" || r.context === "STRUCTURED");
   const coldRows = rows.filter((r) => r.context === "COLD");
   const funnel = ctxRows.filter((r) => !isNeg(r));
-  const contexts                        = {};
-  const by_segment                                        = {};
-  const by_model                                        = {};
-  const negative                       = {};
+  const contexts = {};
+  const by_segment = {};
+  const by_model = {};
+  const negative = {};
   for (const ctx of ["COPY", "STRUCTURED"]) {
     const rs = funnel.filter((r) => r.context === ctx);
     if (!rs.length) continue;
@@ -223,7 +223,7 @@ function aggregate(rowsIn          )          {
     by_segment[ctx] = {};
     for (const seg of ["OPEN", "CONSTRAINED", "DELEGATED"]) {
       const s = rs.filter((r) => PROMPTS.find((p) => p.prompt_id === r.prompt_id)?.segment === seg);
-      if (s.length) (by_segment[ctx]                         )[seg] = sliceOf(s, W5.minPromptN);
+      if (s.length) (by_segment[ctx])[seg] = sliceOf(s, W5.minPromptN);
     }
     const neg = ctxRows.filter((r) => r.context === ctx && isNeg(r) && asBool(r.parse_success));
     const negAll = ctxRows.filter((r) => r.context === ctx && isNeg(r));
@@ -233,18 +233,18 @@ function aggregate(rowsIn          )          {
     by_model[m] = {};
     for (const ctx of ["COPY", "STRUCTURED"]) {
       const s = funnel.filter((r) => r.model_id === m && r.context === ctx);
-      if (s.length) (by_model[m]                         )[ctx] = sliceOf(s);
+      if (s.length) (by_model[m])[ctx] = sliceOf(s);
     }
   }
-  const groups = new Map                  ();
+  const groups = new Map ();
   for (const r of rows) {
     const k = `${r.prompt_id}|${r.context}|${r.model_id}`;
     groups.set(k, [...(groups.get(k) ?? []), r]);
   }
-  const by_prompt                       = [];
-  const agreements           = [];
+  const by_prompt = [];
+  const agreements = [];
   for (const [k, rs] of groups) {
-    const [prompt_id, context, model_id] = k.split("|")                            ;
+    const [prompt_id, context, model_id] = k.split("|");
     const neg = PROMPTS.find((p) => p.prompt_id === prompt_id)?.negative;
     const valid = rs.filter((r) => asBool(r.parse_success));
     by_prompt.push({ prompt_id, context, model_id, slice: sliceOf(rs, W5.minPromptN), correct_rejection: neg ? wilson(valid.filter((r) => !asBool(r.ar_recommended)).length, valid.length) : null });
@@ -254,13 +254,13 @@ function aggregate(rowsIn          )          {
     }
   }
   by_prompt.sort((a, b) => a.prompt_id.localeCompare(b.prompt_id) || a.context.localeCompare(b.context) || a.model_id.localeCompare(b.model_id));
-  const peers                   = {};
+  const peers = {};
   for (const p of PRODUCTS.filter((x) => x.synthetic)) {
     let c = 0;
     let u = 0;
     for (const r of ctxRows.filter((x) => asBool(x.parse_success))) {
       try {
-        const pj = JSON.parse(String(r.peer_json || "{}"))                                                              ;
+        const pj = JSON.parse(String(r.peer_json || "{}"));
         c += Number(pj[p.id]?.correct ?? 0);
         u += Number(pj[p.id]?.unsupported ?? 0);
       } catch {
