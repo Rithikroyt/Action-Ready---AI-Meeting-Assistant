@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Inter, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import { ToastProvider } from "@/components/Toast";
 import { Spotlight } from "@/components/Spotlight";
@@ -28,10 +29,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" data-theme="dark" className={`${inter.variable} ${serif.variable} ${mono.variable}`} suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
-      </head>
       <body>
+        <Script id="theme-boot" strategy="beforeInteractive">
+          {THEME_BOOT}
+        </Script>
         <div className="atmosphere" aria-hidden />
         <Spotlight />
         <ToastProvider>{children}</ToastProvider>
