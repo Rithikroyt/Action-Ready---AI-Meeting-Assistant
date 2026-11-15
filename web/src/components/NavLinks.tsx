@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLayoutEffect, useRef, useState } from "react";
-import { IconGrid, IconPlus, IconUsers } from "./Icons";
+import { IconChart, IconGrid, IconPlus, IconUsers } from "./Icons";
 
 const LINKS = [
   { href: "/dashboard", label: "Overview", icon: IconGrid, match: (p: string) => p.startsWith("/dashboard") || p.startsWith("/cases") },
   { href: "/meetings/new", label: "New meeting", icon: IconPlus, match: (p: string) => p.startsWith("/meetings/new") },
   { href: "/team", label: "Team", icon: IconUsers, match: (p: string) => p.startsWith("/team") },
+  { href: "/visibility", label: "Visibility", icon: IconChart, match: (p: string) => p.startsWith("/visibility") },
 ];
 
 // Survives client-side navigations (the shell re-mounts per page), so the pill slides from the previous tab.

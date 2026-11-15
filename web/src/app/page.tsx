@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { getConfig } from "@/lib/env";
 import { ROUTES, type RouteId } from "@/lib/coordinator";
@@ -11,7 +12,12 @@ import { CountUp } from "@/components/CountUp";
 import { IconArrowRight, IconDatabase, IconDoc, IconHelp, IconLogo, IconMail, IconRoute, IconShield, IconSparkle, IconUsers, IconChart } from "@/components/Icons";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "From meeting notes to verified, feasible action" };
+// The public product page is the one page crawlers may index; it points agents at the machine-readable profile.
+export const metadata: Metadata = {
+  title: "From meeting notes to verified, feasible action",
+  robots: { index: true, follow: true },
+  alternates: { types: { "application/json": "/agent-profile.json" } },
+};
 
 const PIPELINE = [
   { icon: IconDoc, title: "Notes in", body: "A structured intake form takes the notes, the planning week and the timezone." },
@@ -303,7 +309,12 @@ export default function LandingPage() {
       </main>
 
       <footer className="land-foot">
-        <span className="mono">ActionReady · CIS 515 project</span>
+        <span className="mono">
+          ActionReady · CIS 515 project ·{" "}
+          <a href="/agent-profile.json" type="application/json">
+            Agent profile (JSON)
+          </a>
+        </span>
         <span className="muted">{cfg.mode === "demo" ? "Synthetic demo — no n8n workflow, model or tool call runs here." : "Live results come from the n8n workflow."}</span>
       </footer>
     </div>
