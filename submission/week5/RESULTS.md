@@ -97,7 +97,8 @@ still open.
 3. **Rule-based recommendations** now cover provider failures, contract failures and an insufficient before/after
    sample (published version e68623a9).
 
-## What is still open
+## Before/after: inconclusive (final)
 
-A STRUCTURED re-run (P01, P04, P05, P06 and P08, 3 each: **15 calls**, at the 13-second spacing) would complete the
-before/after comparison. It needs the owner's approval, because it goes beyond the 36-call evidence budget.
+The owner decided on 2026-11-14 not to re-run. The COPY → STRUCTURED comparison is reported as **inconclusive
+because of provider rate limiting**. The failed runs are kept as observations and were not retried for a better
+result. A future re-run would be 15 calls (STRUCTURED: P01, P04, P05, P06 and P08, 3 each) at the 13-second spacing.

@@ -3,6 +3,9 @@
 Website screenshots 03–07 in `screenshots/` were captured automatically from `/visibility` rendering the REAL stored runs (`live-results.json`, exported read-only from n8n) — not the synthetic sample.
 n8n canvas/execution screenshots need your logged-in n8n editor — take them by hand (steps below).
 
+**Yellowdig set:** 01, 02, 03, 05, 06, 07. Screenshot 04 (before → after) stays in the repo as evidence but is not a
+headline: the structured condition did not reach the minimum sample, so the comparison is inconclusive.
+
 **Before every capture:** crop or hide the browser address bar on n8n (it shows the private instance host);
 make sure no email address, header name or credential is visible.
 
