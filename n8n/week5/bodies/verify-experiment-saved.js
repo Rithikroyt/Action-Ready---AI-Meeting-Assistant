@@ -1,0 +1,7 @@
+// W5 · Verify Experiment Saved — answer 202 only if the RUNNING record reads back.
+const want = $('W5 · Prepare Test Runs').first().json.experiment;
+const rows = $input.all().map((i) => i.json || {}).filter((r) => r.experiment_id === want.experiment_id);
+if (rows.length === 1 && rows[0].status === 'RUNNING') {
+  return [{ json: { saved: true, http_status: 202, response_body: { schema_version: '1', experiment_id: want.experiment_id, status: 'RUNNING', requested_runs: want.requested_runs } } }];
+}
+return [{ json: { saved: false, http_status: 503, response_body: { schema_version: '1', error: { code: 'STORAGE_UNAVAILABLE', message: 'The experiment record could not be verified, so no model was called.' } } } }];

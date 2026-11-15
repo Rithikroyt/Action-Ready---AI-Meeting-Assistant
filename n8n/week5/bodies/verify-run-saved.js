@@ -1,0 +1,5 @@
+// W5 · Verify Run Saved — the stored row must read back with the same key and coded outcome. Runs once per item.
+const want = $('W5 · Code Run Outcome').item.json;
+const got = $input.item.json || {};
+const ok = got.run_key === want.run_key && String(got.parse_success) === String(want.parse_success);
+return { json: { run_key: want.run_key, saved: ok } };

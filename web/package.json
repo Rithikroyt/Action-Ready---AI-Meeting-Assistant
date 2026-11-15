@@ -9,7 +9,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "fixtures:export": "node --experimental-strip-types --no-warnings scripts/export-fixtures.mjs"
+    "fixtures:export": "node --experimental-strip-types --no-warnings scripts/export-fixtures.mjs",
+    "week5:nodes": "node scripts/build-week5-nodes.mjs"
   },
   "engines": {
     "node": ">=20.9.0"
