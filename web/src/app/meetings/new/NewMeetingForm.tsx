@@ -9,6 +9,7 @@ import { PreflightPanel } from "./PreflightPanel";
 import { IconAlert, IconDatabase, IconLock, IconSparkle, IconUpload } from "@/components/Icons";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toast";
+import { extractNotesFile, NOTES_FILE_ACCEPT } from "@/lib/notesFile";
 
 export interface ExampleOption {
   id: string;
@@ -19,7 +20,6 @@ export interface ExampleOption {
   timezone: string;
 }
 
-const MAX_FILE_BYTES = 64 * 1024;
 const COMMON_TZ = ["America/Phoenix", "America/Los_Angeles", "America/Denver", "America/Chicago", "America/New_York", "Europe/London", "Europe/Berlin", "Asia/Kolkata", "Asia/Singapore", "Australia/Sydney", "UTC"];
 
 type Phase =
@@ -47,7 +47,8 @@ export function NewMeetingForm(props: {
   const [tz, setTz] = useState(initValues?.timezone ?? "America/Phoenix");
   const [loaded, setLoaded] = useState<ExampleOption | null>(init);
   const [fieldErr, setFieldErr] = useState<Record<string, string>>({});
-  const [fileMsg, setFileMsg] = useState<string | null>(null);
+  const [fileMsg, setFileMsg] = useState<{ text: string; tone: "ok" | "err" } | null>(null);
+  const [reading, setReading] = useState(false);
   const [phase, setPhase] = useState<Phase>({ k: "idle" });
   // One request ID per distinct submission. It survives an ambiguous timeout so "Check again"
   // re-asks about the same request instead of starting a second analysis.
@@ -95,16 +96,16 @@ export function NewMeetingForm(props: {
 
   async function onFile(f: File | undefined) {
     setFileMsg(null);
-    if (!f) return;
-    if (!/\.txt$/i.test(f.name) || (f.type && f.type !== "text/plain")) return setFileMsg("Only plain-text .txt files are supported.");
-    if (f.size > MAX_FILE_BYTES) return setFileMsg("That file is larger than 64 KB.");
-    const text = await f.text();
-    if (text.trim().length > MAX_CHARS) return setFileMsg(`The file has ${text.trim().length.toLocaleString()} characters; the limit is 12,000. Nothing was truncated.`);
-    setNotes(text);
-    setLoaded(null);
-    setFileMsg(`Loaded ${f.name}.`);
-    toast({ tone: "success", title: "Notes loaded", body: f.name });
     if (fileRef.current) fileRef.current.value = "";
+    if (!f) return;
+    setReading(true);
+    const r = await extractNotesFile(f).finally(() => setReading(false));
+    if (!r.ok) return setFileMsg({ text: r.message, tone: "err" });
+    setNotes(r.text);
+    setLoaded(null);
+    const what = r.kind === "pdf" ? `${r.pages} page${r.pages === 1 ? "" : "s"} of text` : "the text";
+    setFileMsg({ text: `Loaded ${what} from ${f.name}. The file stayed on this device — check the text below before submitting.`, tone: "ok" });
+    toast({ tone: "success", title: "Notes loaded", body: f.name });
   }
 
   function reviewNotes() {
@@ -181,12 +182,20 @@ export function NewMeetingForm(props: {
               ref={fileRef}
               id={ids.file}
               type="file"
-              accept=".txt,text/plain"
+              accept={NOTES_FILE_ACCEPT}
               className="sr-only"
               onChange={(e) => void onFile(e.target.files?.[0])}
             />
-            <label htmlFor={ids.file} className="btn sm" role="button" tabIndex={0} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && fileRef.current?.click()}>
-              <IconUpload width={14} height={14} /> Upload .txt
+            <label
+              htmlFor={ids.file}
+              className="btn sm"
+              role="button"
+              tabIndex={0}
+              aria-disabled={reading || undefined}
+              title="Text, Word or PDF file — read on this device, never uploaded"
+              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && fileRef.current?.click()}
+            >
+              <IconUpload width={14} height={14} /> {reading ? "Reading file…" : "Upload .txt · .docx · .pdf"}
             </label>
           </div>
         </div>
@@ -213,8 +222,8 @@ export function NewMeetingForm(props: {
               </span>
             </div>
             {fileMsg && (
-              <span className="hint" role="status">
-                {fileMsg}
+              <span className={fileMsg.tone === "err" ? "err" : "hint"} role={fileMsg.tone === "err" ? "alert" : "status"}>
+                {fileMsg.text}
               </span>
             )}
           </div>
