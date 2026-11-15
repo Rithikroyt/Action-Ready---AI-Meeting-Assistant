@@ -38,7 +38,7 @@ const METRICS: { key: keyof Slice; label: string; help: string; lowerIsBetter?: 
   { key: "unsupported_claims", label: "Unsupported claims", help: "Runs with ≥1 false capability claim", lowerIsBetter: true },
 ];
 
-export function VisibilityLab({ detail, list, mode, unavailable, canStart, startBlockedReason }: { detail: Detail | null; list: ExperimentSummary[]; mode: "live" | "synthetic"; unavailable: string | null; canStart: boolean; startBlockedReason: string | null }) {
+export function VisibilityLab({ detail, list, mode, unavailable, canStart, startBlockedReason, coldFrom = null }: { detail: Detail | null; list: ExperimentSummary[]; mode: "live" | "synthetic" | "snapshot"; unavailable: string | null; canStart: boolean; startBlockedReason: string | null; coldFrom?: { experiment_id: string; slice: Slice } | null }) {
   const m = detail?.metrics ?? null;
   return (
     <div className="vis">
@@ -66,6 +66,15 @@ export function VisibilityLab({ detail, list, mode, unavailable, canStart, start
           <IconAlert />
           <span>
             <strong>Synthetic sample — not a measurement.</strong> This site is not connected to the live workflow, so the numbers below come from a labelled synthetic sample run through the real parser and scoring code. No model was called.
+          </span>
+        </div>
+      )}
+      {mode === "snapshot" && (
+        <div className="banner info" role="note">
+          <IconChart />
+          <span>
+            <strong>Live measurement snapshot.</strong> Real Gemini runs stored in n8n on 15 Nov 2026, exported read-only and recomputed here by the same code. Not
+            synthetic — but not refreshed either; the live site shows the current data.
           </span>
         </div>
       )}
@@ -119,7 +128,7 @@ export function VisibilityLab({ detail, list, mode, unavailable, canStart, start
           </div>
           <Sensitivity m={m} />
           <div className="vis-two">
-            <ColdAndNegative m={m} />
+            <ColdAndNegative m={m} coldFrom={coldFrom} />
             <ModelComparison m={m} />
           </div>
           <Explorer runs={detail.runs} />
@@ -338,6 +347,11 @@ function RunSummary({ detail }: { detail: Detail }) {
         {m.totals.valid} of {m.totals.requested} runs valid
         {m.totals.failed > 0 && ` · ${m.totals.failed} failed (${Object.entries(m.totals.errors).map(([k, n]) => `${k} ${n}`).join(", ")})`} · models {e.models} · {e.reps_per_cell} reps
       </span>
+      {"stored_status" in e && (
+        <span className="small muted">
+          (Status recomputed from the stored runs; the stored summary said {String((e as Record<string, unknown>).stored_status)} with {String((e as Record<string, unknown>).stored_valid_runs)} valid — written before an aggregation fix.)
+        </span>
+      )}
     </section>
   );
 }
@@ -348,25 +362,30 @@ function RunSummary({ detail }: { detail: Detail }) {
 function Kpis({ m }: { m: Metrics }) {
   const after = m.contexts.STRUCTURED;
   const before = m.contexts.COPY;
-  const main = after ?? before;
+  // Headline the condition with enough valid runs; never headline a 1-run slice as "100%".
+  const mainCtx = after?.sufficient ? "STRUCTURED" : before?.sufficient ? "COPY" : after ? "STRUCTURED" : "COPY";
+  const main = mainCtx === "STRUCTURED" ? after : before;
+  const other = mainCtx === "STRUCTURED" ? before : after;
   if (!main) return <section className="card card-body muted">No context runs in this experiment.</section>;
   return (
     <section className="vis-kpis" id="kpis" aria-label="Key metrics — agent-read context, P08 excluded">
       {METRICS.map((k, i) => {
         const a = main[k.key] as Rate;
-        const b = after && before ? (before[k.key] as Rate) : null;
-        const delta = b && a.rate !== null && b.rate !== null ? Math.round((a.rate - b.rate) * 100) : null;
+        const b = other ? (other[k.key] as Rate) : null;
+        const comparable = !!other && main.sufficient && other.sufficient;
+        const delta = comparable && b && a.rate !== null && b.rate !== null ? Math.round((mainCtx === "STRUCTURED" ? a.rate - b.rate : b.rate - a.rate) * 100) : null;
         const good = delta === null ? null : k.lowerIsBetter ? delta < 0 : delta > 0;
         return (
           <article key={k.key} className="vis-kpi" style={{ animationDelay: `${i * 60}ms` }}>
             <span className="vis-kpi-label mono">{k.label}</span>
             <span className="vis-kpi-n">{pct(a.rate)}</span>
             <span className="small muted num">
-              {a.n ? `${a.k} of ${a.n}` : "no valid runs"} · {ctxLabel[after ? "STRUCTURED" : "COPY"]}
+              {a.n ? `${a.k} of ${a.n}` : "no valid runs"} · {ctxLabel[mainCtx]}
             </span>
-            {b && (
+            {b && other && (
               <span className={`vis-kpi-delta ${good === null || delta === 0 ? "" : good ? "up" : "down"}`}>
-                Copy only: {pct(b.rate)} ({b.n ? `${b.k} of ${b.n}` : "n/a"}){delta !== null && delta !== 0 ? ` · ${delta > 0 ? "+" : ""}${delta} pts` : delta === 0 ? " · no change" : ""}
+                {ctxLabel[mainCtx === "STRUCTURED" ? "COPY" : "STRUCTURED"]}: {pct(b.rate)} ({b.n ? `${b.k} of ${b.n}` : "n/a"})
+                {!comparable ? " · too few runs to compare" : delta !== null && delta !== 0 ? ` · structure ${delta > 0 ? "+" : ""}${delta} pts` : delta === 0 ? " · no change" : ""}
               </span>
             )}
             <span className="hint">{k.help}</span>
@@ -439,6 +458,16 @@ function BeforeAfter({ m }: { m: Metrics }) {
         <p className="card-body muted">Both contexts are needed for a before/after comparison.</p>
       ) : (
         <div className="card-body vis-dumbbells">
+          {(!a.sufficient || !b.sufficient) && (
+            <div className="banner warn" role="note">
+              <IconAlert />
+              <span>
+                <strong>Insufficient evidence for a before/after claim.</strong> Valid runs: copy only {b.valid} of {b.requested}, structured {a.valid} of {a.requested}
+                {a.failed + b.failed > 0 ? ` (${a.failed + b.failed} failed — see the run explorer)` : ""}. Each side needs at least {W5.minHeadlineN}. The dots are shown for
+                transparency only.
+              </span>
+            </div>
+          )}
           <div className="vis-legend small">
             <span>
               <i className="dot-before" /> Copy only
@@ -537,7 +566,8 @@ function Sensitivity({ m }: { m: Metrics }) {
   );
 }
 
-function ColdAndNegative({ m }: { m: Metrics }) {
+function ColdAndNegative({ m, coldFrom }: { m: Metrics; coldFrom: { experiment_id: string; slice: Slice } | null }) {
+  const cold = m.cold ?? coldFrom?.slice ?? null;
   return (
     <section className="card" id="cold-negative" aria-labelledby="cn-h">
       <div className="card-head">
@@ -546,7 +576,8 @@ function ColdAndNegative({ m }: { m: Metrics }) {
       <div className="card-body stack">
         <div className="vis-mini-card">
           <span className="mono small muted">Asked cold · appeared</span>
-          {m.cold ? <RateText r={m.cold.appearance} ci /> : <span className="muted">Not run in this experiment</span>}
+          {cold ? <RateText r={cold.appearance} ci /> : <span className="muted">Not run yet</span>}
+          {!m.cold && coldFrom && <span className="small muted mono">from separate experiment {coldFrom.experiment_id}</span>}
           <span className="hint">Cold recall measures public model familiarity, not product quality.</span>
         </div>
         <div className="vis-mini-card">

@@ -7,7 +7,7 @@ import { IconLock, IconLogo } from "./Icons";
 import { NavLinks } from "./NavLinks";
 import { ThemeToggle } from "./ThemeToggle";
 
-export async function AppShell({ children }: { children: React.ReactNode }) {
+export async function AppShell({ children, demoNote = true }: { children: React.ReactNode; demoNote?: boolean }) {
   const cfg = getConfig();
   const session = await getSession();
   const disconnected = cfg.mode === "live" && !cfg.n8n;
@@ -66,7 +66,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main id="main" className="content">
-        {cfg.mode === "demo" && (
+        {cfg.mode === "demo" && demoNote && (
           <div className="banner demo" role="note">
             <span>
               <strong>Synthetic demo.</strong> Only labeled example meetings run, evaluated by this app&apos;s copy of the readiness rules. No n8n workflow,

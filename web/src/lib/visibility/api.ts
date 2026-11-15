@@ -74,10 +74,27 @@ export async function getExperiment(id: string, fetchImpl?: typeof fetch): Promi
   if (r.status === 404) return { kind: "not_found" };
   const b = r.body as Partial<ExperimentDetail> | null;
   if (r.status !== 200 || !b || !b.experiment || !Array.isArray(b.runs)) return { kind: "unavailable", message: errMsg(r.body, r.status) };
+  return { kind: "ok", data: detailFromStored(b.experiment as ExperimentDetail["experiment"], b.runs) };
+}
+
+/** Builds the page model from stored rows: metrics, status and recommendations are always recomputed from the runs. */
+export function detailFromStored(stored: ExperimentDetail["experiment"], runs: RunRow[]): ExperimentDetail {
+  const b = { runs };
   // Recompute on this side too: the page shows numbers derived from the stored runs, never trusted blindly.
   const metrics = aggregate(b.runs);
   const rubric = readability(agentProfile());
-  return { kind: "ok", data: { synthetic: false, experiment: b.experiment as ExperimentDetail["experiment"], runs: b.runs, metrics, readability: rubric, recommendations: recommendations(metrics, rubric) } };
+  const experiment = { ...stored };
+  // The status shown is recomputed from the stored runs too. If the stored summary disagrees (e.g. an experiment finalized
+  // by an earlier, buggy aggregator), the stored value is kept visibly as stored_status — never silently overwritten.
+  if (experiment.status !== "RUNNING") {
+    const requested = Number(experiment.requested_runs) || 0;
+    const keys = new Set(b.runs.map((r) => r.run_key)).size;
+    const computed = requested > 0 && metrics.totals.valid === requested && keys === requested ? "COMPLETE" : metrics.totals.valid > 0 ? "PARTIAL" : "FAILED";
+    if (computed !== experiment.status || Number(experiment.valid_runs) !== metrics.totals.valid) {
+      Object.assign(experiment, { stored_status: experiment.status, stored_valid_runs: experiment.valid_runs, status: computed, valid_runs: metrics.totals.valid, failed_runs: requested - metrics.totals.valid });
+    }
+  }
+  return { synthetic: false, experiment, runs: b.runs, metrics, readability: rubric, recommendations: recommendations(metrics, rubric) };
 }
 
 export type StartOutcome = { kind: "accepted"; experiment_id: string; requested_runs: number } | { kind: "refused"; http: number; message: string } | { kind: "unavailable"; message: string } | { kind: "ambiguous"; message: string };

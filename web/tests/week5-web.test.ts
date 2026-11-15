@@ -74,6 +74,28 @@ describe("visibility adapter", () => {
   });
 });
 
+describe("stored summary vs recomputed status", () => {
+  it("a stale stored summary is corrected from the runs and kept visibly as stored_status", async () => {
+    live();
+    const req = { kind: "COLD" as const, prompt_ids: [], cold_prompt_ids: ["P01"], contexts: [], models: ["gemini-3.5-flash"], reps: 3, seed: 1, requested_by_hash: null };
+    const runs = planRuns("w5x_mabc123_abcdef", req).map((r) => runRow(r, "w5x_mabc123_abcdef", { provider_status: "OK", raw: JSON.stringify({ contract: W5.contract, prompt_id: "P01", declined: false, decline_reason: null, candidates: [{ name: "Otter.ai", rank: 1, status: "RECOMMENDED", reasons: [], claimed_capabilities: [] }] }), latency_ms: 1, started_at: "x" }));
+    const d = await getExperiment("w5x_mabc123_abcdef", spy(200, { experiment: { experiment_id: "w5x_mabc123_abcdef", status: "PARTIAL", requested_runs: 3, valid_runs: 1 }, runs }).f);
+    expect(d.kind === "ok" && d.data.experiment).toMatchObject({ status: "COMPLETE", valid_runs: 3, stored_status: "PARTIAL", stored_valid_runs: 1 });
+  });
+});
+
+describe("sanitized n8n export", () => {
+  it("contains only the Week 5 branch and no private identifiers", async () => {
+    // @ts-expect-error — plain .mjs script
+    const { sanitizedWorkflow } = await import("../scripts/export-week5.mjs");
+    const wf = sanitizedWorkflow() as { nodes: { name: string; type: string }[] };
+    const text = JSON.stringify(wf);
+    expect(wf.nodes.every((n) => n.name.startsWith("W5 · ") || n.type === "n8n-nodes-base.stickyNote")).toBe(true);
+    expect(text).not.toMatch(/n8n\.cloud|@gmail|webhookId|X-ActionReady-Key|KTQmpWghSB2jid1T/);
+    expect(text).toMatch(/REPLACE_WITH_YOUR_GEMINI_CREDENTIAL/);
+  });
+});
+
 describe("/agent-profile.json", () => {
   it("is public JSON, crawlable, and contains no secrets or private identifiers", async () => {
     live();
