@@ -4,7 +4,8 @@
 - The n8n workflow is **`KTQmpWghSB2jid1T`** ("ActionReady - Week 2 Yellowdig FINAL"). Every week's functionality lives on this canvas.
 - Never create replacement workflows, weekly clones, sub-workflows, or Execute-Workflow / Call-Workflow tools. Never import an export as a new workflow.
 - `cisiwLtNtjuegt6m` has the same name but is a **different, duplicate workflow**. Do not edit it. It is reference only, because it contains the `Gmail - Request Approval` node the target lacks.
-- Before any live write: re-fetch the workflow and compare `versionId` with the last audited value (last audited and published: `6e7b6eb7-4a7c-4b25-bdf6-6aca7b6c0ea4`, 2026-11-09, sending ON, tracker + case list + Team page live). Stop on drift.
+- Before any live write: re-fetch the workflow and compare `versionId` with the last audited value (last audited and published: `e68623a9-d298-4256-a721-d6a5e6db454d`, 2026-11-14 = Week 4 baseline `6e7b6eb7` + the isolated Week 5 visibility branch: 38 added nodes, 0 removed/modified, tables `AR_W5_Experiments` / `AR_W5_Runs`). Stop on drift.
+- Week 5 evidence budget (36 Gemini calls) is spent. Any further experiment run needs fresh owner authorization.
 - Live writes, table seeding, publishing, paid model runs, and Gmail actions need explicit owner authorization each time.
 
 ## Safety invariants
