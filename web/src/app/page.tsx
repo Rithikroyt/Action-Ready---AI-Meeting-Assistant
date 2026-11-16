@@ -1,3 +1,4 @@
+import { DemoVideoButton } from "@/components/DemoVideoButton";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getConfig } from "@/lib/env";
@@ -76,6 +77,7 @@ export default function LandingPage() {
           <div className="land-nav-cta">
             <ModeBadge mode={cfg.mode} disconnected={disconnected} />
             <ThemeToggle />
+            <DemoVideoButton className="btn ghost" compact />
             <Link href="/dashboard" className="btn primary">
               Open workspace <IconArrowRight width={15} height={15} />
             </Link>
@@ -102,6 +104,7 @@ export default function LandingPage() {
                 Open the workspace <IconArrowRight width={16} height={16} />
               </Link>
               <HowItWorksButton className="btn glass lg" />
+              <DemoVideoButton className="btn glass lg" label="Watch the demo video" />
             </div>
           </div>
           <div className="hero-visual">

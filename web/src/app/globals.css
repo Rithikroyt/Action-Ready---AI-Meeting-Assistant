@@ -1988,3 +1988,15 @@ span.err {
   color: var(--blocked);
   font-weight: 560;
 }
+
+/* Demo video button (landing + app bar) */
+.demo-video-btn { gap: 8px; }
+.demo-video-btn .dvb-play {
+  display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: #fff;
+  background: linear-gradient(135deg, #ffb14a, #ef5d9a 55%, #8a78ff); box-shadow: 0 0 0 0 rgba(239, 93, 154, 0.55);
+  animation: dvb-pulse 2.4s ease-out infinite;
+}
+.demo-video-btn .dvb-play svg { margin-left: 2px; }
+@keyframes dvb-pulse { 70% { box-shadow: 0 0 0 9px rgba(239, 93, 154, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 93, 154, 0); } }
+@media (max-width: 900px) { .demo-video-btn.compact .dvb-label { display: none; } }
+@media (prefers-reduced-motion: reduce) { .demo-video-btn .dvb-play { animation: none; } }

@@ -6,6 +6,7 @@ import { ModeBadge } from "./Badges";
 import { IconLock, IconLogo } from "./Icons";
 import { NavLinks } from "./NavLinks";
 import { ThemeToggle } from "./ThemeToggle";
+import { DemoVideoButton } from "./DemoVideoButton";
 
 export async function AppShell({ children, demoNote = true }: { children: React.ReactNode; demoNote?: boolean }) {
   const cfg = getConfig();
@@ -33,6 +34,7 @@ export async function AppShell({ children, demoNote = true }: { children: React.
             </span>
             <ModeBadge mode={cfg.mode} disconnected={disconnected} />
             <ThemeToggle />
+            <DemoVideoButton className="btn ghost sm" compact />
             {!session || session.kind === "guest" ? (
               <>
                 <span className="small muted guest-note">Open demo · not signed in</span>
