@@ -9,7 +9,8 @@ import { PreflightPanel } from "./PreflightPanel";
 import { IconAlert, IconDatabase, IconLock, IconSparkle, IconUpload } from "@/components/Icons";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toast";
-import { extractNotesFile, NOTES_FILE_ACCEPT } from "@/lib/notesFile";
+import { extractNotesFile } from "@/lib/notesFile";
+import { AttachMenu } from "./AttachMenu";
 
 export interface ExampleOption {
   id: string;
@@ -38,7 +39,7 @@ export function NewMeetingForm(props: {
 }) {
   const router = useRouter();
   const toast = useToast();
-  const ids ={ notes: useId(), start: useId(), end: useId(), tz: useId(), file: useId() };
+  const ids ={ notes: useId(), start: useId(), end: useId(), tz: useId() };
   const init = props.examples.find((e) => e.id === props.initialExample) ?? null;
   const initValues = init ? exampleFormState(init) : null;
   const [notes, setNotes] = useState(initValues?.notes ?? "");
@@ -56,7 +57,7 @@ export function NewMeetingForm(props: {
   // Request ID whose pre-submit warnings the user already accepted, so we ask only once per submission.
   const [warnAck, setWarnAck] = useState<string | null>(null);
   const [attempted, setAttempted] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
   const notesRef = useRef<HTMLTextAreaElement>(null);
   const firstLoad = useRef(true);
 
@@ -96,7 +97,6 @@ export function NewMeetingForm(props: {
 
   async function onFile(f: File | undefined) {
     setFileMsg(null);
-    if (fileRef.current) fileRef.current.value = "";
     if (!f) return;
     setReading(true);
     const r = await extractNotesFile(f).finally(() => setReading(false));
@@ -178,25 +178,7 @@ export function NewMeetingForm(props: {
             {loaded && (
               <span className={`badge ${edited ? "unknown" : "demo"}`}>{edited ? "Synthetic example · edited" : "Synthetic example"}</span>
             )}
-            <input
-              ref={fileRef}
-              id={ids.file}
-              type="file"
-              accept={NOTES_FILE_ACCEPT}
-              className="sr-only"
-              onChange={(e) => void onFile(e.target.files?.[0])}
-            />
-            <label
-              htmlFor={ids.file}
-              className="btn sm"
-              role="button"
-              tabIndex={0}
-              aria-disabled={reading || undefined}
-              title="Text, Word or PDF file — read on this device, never uploaded"
-              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && fileRef.current?.click()}
-            >
-              <IconUpload width={14} height={14} /> {reading ? "Reading file…" : "Upload .txt · .docx · .pdf"}
-            </label>
+            <AttachMenu busy={reading} onPick={(f) => void onFile(f)} />
           </div>
         </div>
         <div className="card-body stack">
@@ -204,6 +186,21 @@ export function NewMeetingForm(props: {
             <label htmlFor={ids.notes} className="sr-only">
               Meeting notes
             </label>
+            <div
+              className={`drop-wrap ${dragging ? "dragging" : ""}`}
+              onDragOver={(e) => {
+                if (!e.dataTransfer.types.includes("Files")) return;
+                e.preventDefault();
+                setDragging(true);
+              }}
+              onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setDragging(false)}
+              onDrop={(e) => {
+                if (!e.dataTransfer.files.length) return;
+                e.preventDefault();
+                setDragging(false);
+                void onFile(e.dataTransfer.files[0]);
+              }}
+            >
             <textarea
               ref={notesRef}
               id={ids.notes}
@@ -215,6 +212,12 @@ export function NewMeetingForm(props: {
               aria-describedby={`${ids.notes}-meta`}
               spellCheck
             />
+              <div className="drop-overlay" aria-hidden>
+                <IconUpload width={22} height={22} />
+                <strong>Drop your notes file</strong>
+                <span>.pdf · .docx · .txt — read on this device, never uploaded</span>
+              </div>
+            </div>
             <div id={`${ids.notes}-meta`} className="row" style={{ justifyContent: "space-between" }}>
               <span className={fieldErr.notes ? "err" : "hint"}>{fieldErr.notes ?? "Include owners, deadlines and estimated hours. Notes are treated as data, never as instructions."}</span>
               <span className="hint" style={{ color: chars > MAX_CHARS ? "var(--blocked)" : undefined, fontVariantNumeric: "tabular-nums" }}>
